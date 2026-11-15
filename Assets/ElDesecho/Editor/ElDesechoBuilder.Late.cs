@@ -191,4 +191,158 @@ public static partial class ElDesechoBuilder {
             story.steps = new List<ObjectiveStep> { arrive, cam, use, read, open };
         });
     }
+
+    // # roca, S llegada, ~ sector inundado, p sector seco con polvo, v sector de vapor, H puerta pesada.
+    static readonly string[] ExitMap = {
+        "#####################",
+        "#S~~~~#~~~~~~~#~~~~~#",
+        "#~##~~#~###~#~#~###~#",
+        "#~~~~~~~~~~~#~~~~~#~#",
+        "###################p#",
+        "#pppppppp#ppppp#pppp#",
+        "#p####p###p###p#p##p#",
+        "#pppp#pppppppppppp#p#",
+        "#p###################",
+        "#vvvv#vvvvvvv#vvvvvv#",
+        "#v##vvv###v###v#v#v##",
+        "#vvv#vv#vvvvvvv#vvvH#",
+        "#####################",
+    };
+
+    static readonly Vector2Int[] Steps4 = { Vector2Int.up, Vector2Int.right, Vector2Int.down, Vector2Int.left };
+
+    static ShadowFigure Silhouette(Transform root, Vector3 position) {
+        var holder = Point("Silueta al fondo", root, position);
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(CreatureSetup.PrefabPath);
+        var figure = (GameObject)PrefabUtility.InstantiatePrefab(prefab, holder);
+        figure.transform.localScale = Vector3.one * .6f;
+        figure.SetActive(false);
+        var lamp = PointLight("Luz que parpadea", holder, new Vector3(0, TunnelHeight - .4f, 0), new Color(.5f, .95f, .6f), 9, .3f);
+        var shadow = holder.gameObject.AddComponent<ShadowFigure>();
+        shadow.figure = figure;
+        shadow.lamp = lamp;
+        return shadow;
+    }
+
+    // ===================== CAPITULO 4: LA PUERTA DE SALIDA =====================
+    static void BuildExitDoor() {
+        NewScene("C4_PuertaSalida", root => {
+            Atmosphere(new Color(.035f, .045f, .04f), new Color(.012f, .014f, .012f), .05f);
+            var map = ExitMap;
+            int w = map[0].Length, h = map.Length;
+            bool Open(int x, int y) => y >= 0 && y < h && x >= 0 && x < w && map[y][x] != '#';
+            Vector3 Pos(int x, int y) => new(x * Cell, 0, -y * Cell);
+            Grid(root, map, Cell, "");
+            var rng = new System.Random(23);
+            SewerFromMap(root, map, "pvH", rng, (cell, k, open) => {
+                if (k == '~') FloodCell(cell);
+                if (k == 'p') {
+                    Box("Polvo", cell, new Vector3(0, .02f, 0), new Vector3(Cell - .4f, .01f, Cell - .4f), "Polvo", false);
+                    Box("Escombro", cell, new Vector3(1.6f, .2f, -1.7f), new Vector3(.7f, .4f, .5f), "Concreto");
+                }
+                if (k == 'v') Cylinder("Tuberia de vapor", cell, new Vector3(-1.9f, 2.6f, 0), .25f, Cell, new Vector3(90, 0, 0), "Metal");
+            });
+            var start = new Vector2Int(1, 1);
+            var door = new Vector2Int(19, 11);
+            var path = ShortestPath(start, door, Open);
+            var onPath = new HashSet<Vector2Int>(path);
+
+            // Pasillos sin salida: escombros y una marca que solo se ve con las gafas.
+            var deadEnds = OpenCells(map).Where(c => !onPath.Contains(c) && Steps4.Count(d => Open(c.x + d.x, c.y + d.y)) == 1).ToList();
+            foreach (var d in deadEnds) {
+                var rubble = Point("Pasillo bloqueado", root, Pos(d.x, d.y));
+                for (int i = 0; i < 4; i++) Box("Escombro", rubble, new Vector3((i % 2 - .5f) * 1.4f, .5f + (i / 2) * .8f, 0), new Vector3(1.3f, 1, 1.4f), "Concreto").transform.localRotation = Quaternion.Euler(i * 17, i * 40, 0);
+                var mark = rubble.gameObject.AddComponent<XRayTarget>();
+                mark.kind = XRayKind.Blocked;
+                mark.label = "Bloqueado";
+                mark.offset = Vector3.up * 1.5f;
+            }
+            foreach (var d in deadEnds.Take(3)) Silhouette(root, Pos(d.x, d.y) + new Vector3(0, 0, 0));
+
+            // Vapor: chorros periodicos en la mitad de las celdas de vapor de la ruta.
+            int steamIndex = 0;
+            foreach (var c in path.Where(c => map[c.y][c.x] == 'v')) {
+                if (steamIndex++ % 2 == 1) continue;
+                var jet = new GameObject("Chorro de vapor");
+                jet.transform.SetParent(root, false);
+                jet.transform.localPosition = Pos(c.x, c.y) + Vector3.up * 1.2f;
+                var box = jet.AddComponent<BoxCollider>();
+                box.isTrigger = true;
+                box.size = new Vector3(3, 2.4f, 3);
+                var steam = Particles("Vapor", jet.transform, new Vector3(1.5f, 1.5f, 1), 0, 3, .6f, 1, "Lluvia");
+                steam.transform.localPosition = Vector3.up * 2.2f;
+                var sm = steam.main;
+                sm.startColor = new Color(.85f, .9f, .9f, .25f);
+                steam.GetComponent<ParticleSystemRenderer>().renderMode = ParticleSystemRenderMode.Billboard;
+                var steamJet = jet.AddComponent<SteamJet>();
+                steamJet.steam = steam;
+                steamJet.offset = steamIndex * 1.3f;
+                Box("Boquilla", jet.transform, new Vector3(0, 1.3f, 0), new Vector3(.4f, .2f, .4f), "Oxido", false);
+            }
+
+            // Polvo flotando en el sector seco.
+            foreach (var c in path.Where(c => map[c.y][c.x] == 'p').Where((c, i) => i % 4 == 0)) {
+                var dust = Particles("Polvo en el aire", root, new Vector3(5, 5, 1), 6, .1f, .05f, 6, "Lluvia");
+                dust.transform.localPosition = Pos(c.x, c.y) + Vector3.up * 2;
+                var dm = dust.main;
+                dm.startColor = new Color(.7f, .65f, .55f, .2f);
+                dust.GetComponent<ParticleSystemRenderer>().renderMode = ParticleSystemRenderMode.Billboard;
+            }
+
+            // Puerta pesada con mecanismo antiguo.
+            var heavy = Point("Puerta pesada", root, Pos(door.x, door.y) + new Vector3(Cell / 2 - Wall, 0, 0));
+            Box("Hoja de la puerta pesada", heavy, new Vector3(-.15f, 1.5f, 0), new Vector3(.3f, 3, 3.2f), "Puerta");
+            Cylinder("Rueda del mecanismo", heavy, new Vector3(-.4f, 1.5f, 0), .55f, .12f, new Vector3(0, 0, 90), "Oxido");
+            for (int i = 0; i < 4; i++) Box("Radio", heavy, new Vector3(-.42f, 1.5f, 0), new Vector3(.06f, 1, .06f), "Oxido", false).transform.localRotation = Quaternion.Euler(i * 45, 0, 0);
+            PointLight("Corriente de aire frio", heavy, new Vector3(-1.2f, 2.6f, 0), new Color(.7f, .8f, 1), 6, 1.2f);
+            var heavyMark = heavy.gameObject.AddComponent<XRayTarget>();
+            heavyMark.kind = XRayKind.Item;
+            heavyMark.label = "Puerta";
+            heavyMark.offset = Vector3.up * 1.5f;
+
+            foreach (var c in path.Where((c, i) => i % 9 == 4 && map[c.y][c.x] != 'H')) {
+                PointLight("Luz de emergencia", root, Pos(c.x, c.y) + Vector3.up * (TunnelHeight - .5f), new Color(.5f, .95f, .6f), 10, 1.6f, true);
+                Box("Lampara de emergencia", root, Pos(c.x, c.y) + Vector3.up * (TunnelHeight - .25f), new Vector3(.4f, .12f, .2f), "LuzVerde", false);
+            }
+            foreach (var c in path.Where((c, i) => i % 11 == 6)) PipeAt(root, map, c.x, c.y);
+            foreach (var c in path.Where((c, i) => i % 13 == 8)) Noisy(root, Pos(c.x, c.y) + new Vector3(1.2f, 0, 1.2f), "latas");
+            new GameObject("Golpes en las paredes").AddComponent<WallKnocks>().transform.SetParent(root, false);
+
+            var player = Player(root, true, new Color(.012f, .014f, .012f));
+            player.floorNoise = 1.2f;
+            Spawn("llegada", root, Pos(1, 1) + Vector3.up * .05f, 90);
+            Spawn("seco", root, Pos(19, 5) + Vector3.up * .05f, 270);
+            Spawn("vapor", root, Pos(1, 9) + Vector3.up * .05f, 90);
+
+            var a = Creature(root, Pos(10, 3), false, .55f);
+            a.patrolArea = OpenCells(map).Where(c => map[c.y][c.x] == '~').ToArray();
+            var b = Creature(root, Pos(12, 7), false, .55f);
+            b.patrolArea = OpenCells(map).Where(c => map[c.y][c.x] == 'p').ToArray();
+            var big = Creature(root, Pos(10, 11), false);
+            big.patrolArea = OpenCells(map).Where(c => map[c.y][c.x] == 'v').ToArray();
+
+            Trigger("sector-seco", root, Pos(19, 5) + Vector3.up * 1.5f, new Vector3(Cell, 3, Cell));
+            Trigger("sector-vapor", root, Pos(1, 9) + Vector3.up * 1.5f, new Vector3(Cell, 3, Cell));
+            Trigger("puerta-pesada", root, Pos(door.x, door.y) + Vector3.up * 1.5f, new Vector3(Cell, 3, Cell));
+
+            var story = Systems(root);
+            var flood = Step("Atraviesa el sector inundado", "sector-seco",
+                "El camino hacia el exterior lo llevo a traves de varios sectores de mantenimiento.",
+                "El primero estaba inundado. Cada paso en el agua sonaba demasiado.");
+            flood.checkpoint = true;
+            flood.checkpointSpawn = "llegada";
+            var dry = Step("Cruza el sector seco", "sector-vapor",
+                "Aqui el suelo estaba seco y cubierto de polvo. Las luces de emergencia se encendian y se apagaban, revelando movimiento al fondo de los pasillos.",
+                "Usa las gafas para ver que pasillos estan bloqueados.");
+            dry.checkpoint = true;
+            dry.checkpointSpawn = "seco";
+            var steamStep = Step("Atraviesa la sala de vapor sin quemarte", "puerta-pesada",
+                "En estas salas, las tuberias soltaban chorros de vapor caliente. Habia que esperar el momento justo.");
+            steamStep.checkpoint = true;
+            steamStep.checkpointSpawn = "vapor";
+            steamStep.marker = heavy;
+            steamStep.completeChapterTitle = "Fin del capitulo 4";
+            story.steps = new List<ObjectiveStep> { flood, dry, steamStep };
+        });
+    }
 }

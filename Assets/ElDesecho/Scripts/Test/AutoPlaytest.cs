@@ -140,7 +140,7 @@ public sealed class AutoPlaytest : MonoBehaviour {
             save.Store();
             manager.Continue();
         }
-        var sections = new Func<IEnumerator>[] { Prologue, Chapter1, Chapter2, Chapter3 };
+        var sections = new Func<IEnumerator>[] { Prologue, Chapter1, Chapter2, Chapter3, Chapter4 };
         for (int i = Mathf.Max(0, from); i < sections.Length && !failed; i++) yield return sections[i]();
         if (failed) yield break;
 
@@ -252,6 +252,28 @@ public sealed class AutoPlaytest : MonoBehaviour {
         Debug.Log("ELDESECHO_PRUEBA: el antidoto detuvo a una criatura");
         yield return Shot("14-antidoto");
         yield return Use("puerta-reforzada");
+    }
+
+    IEnumerator Chapter4() {
+        yield return WaitScene("C4_PuertaSalida");
+        yield return Shot("15-sector-inundado");
+        var grid = CellGrid.Instance;
+        yield return Travel(grid.Center(new Vector2Int(19, 5)));
+        yield return WaitStep(1, 5);
+        PlayerTools.Current.ToggleGoggles();
+        yield return new WaitForSeconds(.5f);
+        yield return Shot("16-sector-seco-gafas");
+        PlayerTools.Current.ToggleGoggles();
+        yield return Travel(grid.Center(new Vector2Int(1, 9)));
+        yield return WaitStep(2, 5);
+        yield return Shot("17-vapor");
+        var jet = FindFirstObjectByType<SteamJet>();
+        if (jet == null) { Fail("No hay chorros de vapor"); yield break; }
+        float until = Time.time + 6;
+        bool sawActive = false;
+        while (Time.time < until && !sawActive) { sawActive = jet.Active; yield return null; }
+        if (!sawActive) { Fail("El vapor nunca se activa"); yield break; }
+        yield return Travel(grid.Center(new Vector2Int(19, 11)));
     }
 }
 }

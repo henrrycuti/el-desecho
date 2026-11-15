@@ -18,7 +18,7 @@ public static class Chapters {
         new("Capitulo 1: El laboratorio silencioso", "C1_Laboratorio", "entrada"),
         new("Capitulo 2: Tres caminos", "C2_TresCaminos", "cruce"),
         new("Capitulo 3: Lo que queda de la investigacion", "C3_Investigacion", "llegada"),
-        new("Capitulo 4: La puerta de salida", null, null),
+        new("Capitulo 4: La puerta de salida", "C4_PuertaSalida", "llegada"),
         new("Capitulo 5: La luz del dia", null, null),
         new("Epilogo: La verdad no se queda enterrada", null, null),
     };
