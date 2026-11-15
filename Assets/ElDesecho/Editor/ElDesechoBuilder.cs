@@ -8,6 +8,7 @@ using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using Object = UnityEngine.Object;
 
 // Construye el prologo de El Desecho: materiales, kit modular de alcantarilla, escenas y ejecutable.
@@ -44,6 +45,7 @@ public static partial class ElDesechoBuilder {
         MakeMaterials();
         MakeChapterMaterials();
         MakeLateMaterials();
+        MakePbrMaterials();
         MakeKitPrefabs();
         BuildMenu();
         BuildStreet();
@@ -184,6 +186,7 @@ public static partial class ElDesechoBuilder {
         g.transform.SetParent(parent, false);
         g.transform.localPosition = position;
         g.transform.localScale = size;
+        WorldUv(g, size, material);
         Finish(g, material, solid);
         return g;
     }
@@ -277,6 +280,48 @@ public static partial class ElDesechoBuilder {
         mesh.anchor = TextAnchor.MiddleCenter;
     }
 
+
+    // ---------- Postproceso (URP) ----------
+    static VolumeProfile Profile(string name, Color filter, float contrast, float saturation, float bloom, float vignette, float grain, float aberration) {
+        string path = $"{Root}/Postproceso/{name}.asset";
+        Directory.CreateDirectory($"{Root}/Postproceso");
+        AssetDatabase.DeleteAsset(path);
+        var p = ScriptableObject.CreateInstance<VolumeProfile>();
+        AssetDatabase.CreateAsset(p, path);
+        var b = p.Add<Bloom>(true);
+        b.intensity.Override(bloom); b.threshold.Override(.85f); b.scatter.Override(.7f);
+        var v = p.Add<Vignette>(true);
+        v.intensity.Override(vignette); v.smoothness.Override(.45f);
+        var c = p.Add<ColorAdjustments>(true);
+        c.colorFilter.Override(filter); c.contrast.Override(contrast); c.saturation.Override(saturation);
+        if (grain > 0) { var g = p.Add<FilmGrain>(true); g.intensity.Override(grain); g.type.Override(FilmGrainLookup.Medium3); }
+        if (aberration > 0) p.Add<ChromaticAberration>(true).intensity.Override(aberration);
+        foreach (var comp in p.components) AssetDatabase.AddObjectToAsset(comp, p);
+        EditorUtility.SetDirty(p);
+        return p;
+    }
+
+    static Volume PostFx(Transform parent, VolumeProfile profile, float weight = 1, int priority = 0) {
+        var g = new GameObject("Postproceso " + profile.name);
+        g.transform.SetParent(parent, false);
+        var v = g.AddComponent<Volume>();
+        v.isGlobal = true;
+        v.sharedProfile = profile;
+        v.weight = weight;
+        v.priority = priority;
+        return v;
+    }
+
+    // Tono de cada escena: calle azul de noche, alcantarilla verdosa, laboratorio frio y limpio.
+    static VolumeProfile SceneLook(string scene) => scene switch {
+        "P0_Calle" => Profile("Calle", new Color(.85f, .9f, 1.05f), 12, -5, .9f, .32f, .2f, 0),
+        "C1_Laboratorio" => Profile("Laboratorio", new Color(.8f, .87f, .95f), 18, -10, .3f, .3f, .08f, 0),
+        "C5_LuzDelDia" => Profile("Persecucion", new Color(1.05f, .85f, .82f), 22, 5, .8f, .4f, .3f, .15f),
+        _ => Profile("Alcantarilla " + scene, new Color(.88f, 1, .9f), 15, -15, .7f, .38f, .25f, 0),
+    };
+
+    static Volume AlarmLook(Transform parent) => PostFx(parent, Profile("Alarma", new Color(1.1f, .75f, .72f), 30, 20, 1.1f, .5f, .45f, .3f), 0, 5);
+
     // ---------- Jugador y sistemas de escena ----------
     static FirstPersonController Player(Transform parent, bool flashlightOn, Color background) {
         var root = new GameObject("Jugador");
@@ -298,6 +343,9 @@ public static partial class ElDesechoBuilder {
         camera.fieldOfView = 68;
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = background;
+        var cameraData = camera.GetUniversalAdditionalCameraData();
+        cameraData.renderPostProcessing = true;
+        cameraData.antialiasing = AntialiasingMode.FastApproximateAntialiasing;
         head.AddComponent<AudioListener>();
         var lamp = new GameObject("Linterna").AddComponent<Light>();
         lamp.transform.SetParent(head.transform, false);
@@ -320,6 +368,8 @@ public static partial class ElDesechoBuilder {
         var g = new GameObject("Historia y pantalla");
         g.transform.SetParent(parent, false);
         g.AddComponent<Hud>();
+        g.AddComponent<ThreatMusic>();
+        PostFx(parent, SceneLook(parent.root.name));
         return g.AddComponent<ObjectiveManager>();
     }
 
@@ -367,6 +417,7 @@ public static partial class ElDesechoBuilder {
     }
 
     static void NewScene(string name, Action<Transform> build) {
+        boxMeshes.Clear();
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
         var root = Group(name);
         build(root);

@@ -1,0 +1,2 @@
+Texturas PBR de ambientCG (https://ambientcg.com), licencia CC0 1.0 (dominio publico).
+Tiles040, Tiles141, Concrete034, Metal032, Metal064 - version 1K-JPG (Color + NormalGL).

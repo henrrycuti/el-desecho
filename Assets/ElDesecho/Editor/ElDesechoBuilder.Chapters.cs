@@ -164,7 +164,12 @@ public static partial class ElDesechoBuilder {
                     cell.localPosition = LabPos(x, y);
                     LabCellGeo(cell, open, (x + y) % 2 == 0, panels);
                     if ((x * 3 + y * 5) % 4 == 0 || At(x, y) is 'E' or 'F' or 'G' or 'X' or 'H')
-                        lights.Add(PointLight("Fluorescente", cell, Vector3.up * (LabHeight - .3f), new Color(.85f, .92f, 1), 7, 2.4f));
+                    {
+                        // Algunos fluorescentes parpadean y otros estan rotos (apagados, con el panel oscuro).
+                        var tube = PointLight("Fluorescente", cell, Vector3.up * (LabHeight - .3f), new Color(.85f, .92f, 1), 7, 2.4f, lights.Count % 4 == 1);
+                        if (lights.Count % 6 == 3) { tube.enabled = false; panels[^1].sharedMaterial = M("Ventana"); }
+                        lights.Add(tube);
+                    }
                 }
 
             // Entrada: la puerta de seguridad entreabierta por la que llega desde la alcantarilla.
@@ -217,7 +222,11 @@ public static partial class ElDesechoBuilder {
             Corpse(Point("Cuerpo", root, LabPos(15, 7) + new Vector3(-1, 0, .9f)), 200);
             var stains = new[] { (5, 3), (9, 3), (1, 7), (5, 5), (11, 5), (15, 3), (3, 9), (13, 9), (11, 7) };
             for (int i = 0; i < stains.Length; i++)
-                Box("Mancha", root, LabPos(stains[i].Item1, stains[i].Item2) + new Vector3((i % 3 - 1) * 1.1f, .01f, (i % 2 - .5f) * 1.6f), new Vector3(.9f + i % 2 * .5f, .01f, .7f), "Sangre", false);
+                Decal(i % 3 == 2 ? "Baba" : "Sangre", root, LabPos(stains[i].Item1, stains[i].Item2) + new Vector3((i % 3 - 1) * 1.1f, .25f, (i % 2 - .5f) * 1.6f), Vector2.one * (1.2f + i % 2 * .6f), i * 47);
+            // Rastro de baba desde el tanque roto y aranazos en las paredes.
+            for (int i = 0; i < 6; i++) Decal("Baba", root, LabPos(7, 7) + new Vector3(1.6f - i * .9f, .25f, -1.2f - i * .5f), new Vector2(.9f, .9f), i * 61);
+            Decal("Aranazo", root, LabPos(13, 5) + new Vector3(1.5f, 1.4f, .3f), new Vector2(1, 1.3f), 0, Vector3.right);
+            Decal("Aranazo", root, LabPos(7, 8) + new Vector3(-1.4f, 1.5f, 0), new Vector2(1.1f, 1.4f), 8, Vector3.left);
             Noisy(root, LabPos(5, 3), "cristales");
             Noisy(root, LabPos(15, 5), "cristales");
             Noisy(root, LabPos(3, 7), "latas");
@@ -285,6 +294,9 @@ public static partial class ElDesechoBuilder {
             alarm.lights = lights.ToArray();
             alarm.panels = panels.ToArray();
             alarm.alarmPanel = M("PanelAlarma");
+            alarm.alarmVolume = AlarmLook(root);
+            // Sombras solo en tres fluorescentes clave (rendimiento en telefono).
+            foreach (var key in lights.Where(l => l.enabled).Where((l, i) => i % 9 == 0).Take(3)) key.shadows = LightShadows.Soft;
 
             var player = Player(root, true, new Color(.6f, .64f, .68f));
             player.floorNoise = 1;

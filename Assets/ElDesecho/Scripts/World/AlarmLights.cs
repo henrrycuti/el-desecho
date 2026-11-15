@@ -6,6 +6,7 @@ public sealed class AlarmLights : MonoBehaviour {
     public Light[] lights = new Light[0];
     public Renderer[] panels = new Renderer[0];
     public Material alarmPanel;
+    public UnityEngine.Rendering.Volume alarmVolume;
     public Color ambientAfter = new(.08f, .01f, .01f);
     public Color fogAfter = new(.05f, 0, 0);
     public bool Active { get; private set; }
@@ -21,6 +22,21 @@ public sealed class AlarmLights : MonoBehaviour {
             if (l.GetComponent<FlickerLight>() == null) l.gameObject.AddComponent<FlickerLight>().depth = .75f;
         }
         foreach (var r in panels) if (r != null && alarmPanel != null) r.sharedMaterial = alarmPanel;
+        if (alarmVolume != null) alarmVolume.weight = 1;
+        // Balizas giratorias en algunas luces.
+        for (int i = 0; i < lights.Length; i += 5) {
+            if (lights[i] == null) continue;
+            var beacon = new GameObject("Baliza").AddComponent<Light>();
+            beacon.transform.SetParent(lights[i].transform, false);
+            beacon.transform.localRotation = Quaternion.Euler(25, 0, 0);
+            beacon.type = LightType.Spot;
+            beacon.spotAngle = 35;
+            beacon.range = 12;
+            beacon.intensity = 6;
+            beacon.color = new Color(1, .05f, .02f);
+            beacon.shadows = LightShadows.None;
+            beacon.gameObject.AddComponent<Beacon>();
+        }
         RenderSettings.ambientLight = ambientAfter;
         RenderSettings.fogColor = fogAfter;
         var cam = Camera.main;
