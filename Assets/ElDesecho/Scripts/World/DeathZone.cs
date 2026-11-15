@@ -10,6 +10,7 @@ public sealed class DeathZone : MonoBehaviour {
 
     void OnTriggerEnter(Collider other) {
         if (other.GetComponentInParent<FirstPersonController>() == null) return;
+        if (ChapterManager.TestMode) Debug.LogWarning("ELDESECHO_PRUEBA: caida en " + transform.position);
         ChapterManager.Instance?.Caught(message);
     }
 }

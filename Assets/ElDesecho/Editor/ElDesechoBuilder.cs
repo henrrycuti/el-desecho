@@ -52,7 +52,9 @@ public static partial class ElDesechoBuilder {
         BuildThreePaths();
         BuildInvestigation();
         BuildExitDoor();
-        EditorBuildSettings.scenes = new[] { "Menu", "P0_Calle", "P1_Alcantarilla", "C1_Laboratorio", "C2_TresCaminos", "C3_Investigacion", "C4_PuertaSalida" }
+        BuildDawn();
+        BuildEpilogue();
+        EditorBuildSettings.scenes = new[] { "Menu", "P0_Calle", "P1_Alcantarilla", "C1_Laboratorio", "C2_TresCaminos", "C3_Investigacion", "C4_PuertaSalida", "C5_LuzDelDia", "E_Epilogo" }
             .Select(n => new EditorBuildSettingsScene($"{Scenes}/{n}.unity", true)).ToArray();
         AssetDatabase.SaveAssets();
         Debug.Log("ELDESECHO_PROLOGO_CONSTRUIDO");

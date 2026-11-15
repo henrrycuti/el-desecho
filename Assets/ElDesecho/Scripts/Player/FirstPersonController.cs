@@ -28,7 +28,7 @@ public sealed class FirstPersonController : MonoBehaviour {
     public bool BotCrouch { get; set; }
     // Prueba automatica: salta al llegar cerca de este punto.
     public Vector3? BotJumpAt { get; set; }
-    public float jumpSpeed = 5.6f;
+    public float jumpSpeed = 6f;
     public PlayerTools Tools { get; private set; }
 
     CharacterController body;
@@ -97,7 +97,7 @@ public sealed class FirstPersonController : MonoBehaviour {
         var kb = ChapterManager.TestMode ? null : Keyboard.current;
         var mouse = ChapterManager.TestMode ? null : Mouse.current;
         Vector2 move = Vector2.zero, look = Vector2.zero;
-        bool run = false, crouch = Crouched, interact = false, light = false, jump = false;
+        bool run = false, crouch = locked && Crouched, interact = false, light = false, jump = false;
         bool advance = kb != null && (kb.eKey.wasPressedThisFrame || kb.enterKey.wasPressedThisFrame || kb.spaceKey.wasPressedThisFrame)
                        || mouse != null && mouse.leftButton.wasPressedThisFrame || !ChapterManager.TestMode && Touch.InteractPressed;
         if (!locked) {
@@ -135,7 +135,7 @@ public sealed class FirstPersonController : MonoBehaviour {
             if (BotJumpAt.HasValue) {
                 var j = BotJumpAt.Value - transform.position;
                 j.y = 0;
-                if (j.magnitude < 1.7f && body.isGrounded) { jump = true; BotJumpAt = null; }
+                if (j.magnitude < 1.3f && body.isGrounded) { jump = true; BotJumpAt = null; }
             }
         }
         if (BotCrouch) crouch = true;

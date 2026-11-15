@@ -100,6 +100,9 @@ public sealed class ChapterManager : MonoBehaviour {
 
     public void ToMenu() => Go(Chapters.MenuScene, null, 0, null, null);
 
+    // Volver a ver el epilogo desde el menu cuando el juego ya se termino.
+    public void PlayEpilogue() => Go(Chapters.All[^1].firstScene, null, 0, Chapters.All[^1].title, "");
+
     void Go(string scene, string spawn, int step, string titleCard, string sub) {
         if (Busy) return;
         StartCoroutine(Load(scene, spawn, step, titleCard, sub));

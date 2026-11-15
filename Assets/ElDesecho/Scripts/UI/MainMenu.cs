@@ -29,6 +29,10 @@ public sealed class MainMenu : MonoBehaviour {
             GUI.Label(new Rect(x - 80 * s, y + 56 * s, bw + 160 * s, 30 * s), note, Ui.Label(Mathf.RoundToInt(16 * s), TextAnchor.MiddleCenter));
         }
         y += 100 * s;
+        if (PlayerPrefs.GetInt("eldesecho.completado", 0) == 1) {
+            if (GUI.Button(new Rect(x, y, bw, 54 * s), "VER EPILOGO", button)) manager.PlayEpilogue();
+            y += 66 * s;
+        }
         if (GUI.Button(new Rect(x, y, bw, 54 * s), "SALIR", button)) Application.Quit();
     }
 }

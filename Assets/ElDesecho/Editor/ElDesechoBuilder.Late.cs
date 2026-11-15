@@ -278,6 +278,7 @@ public static partial class ElDesechoBuilder {
                 steamJet.steam = steam;
                 steamJet.offset = steamIndex * 1.3f;
                 Box("Boquilla", jet.transform, new Vector3(0, 1.3f, 0), new Vector3(.4f, .2f, .4f), "Oxido", false);
+                PointLight("Brillo del vapor", jet.transform, new Vector3(0, 1.6f, 0), new Color(1, .55f, .3f), 9, 1.8f, true);
             }
 
             // Polvo flotando en el sector seco.
@@ -343,6 +344,343 @@ public static partial class ElDesechoBuilder {
             steamStep.marker = heavy;
             steamStep.completeChapterTitle = "Fin del capitulo 4";
             story.steps = new List<ObjectiveStep> { flood, dry, steamStep };
+        });
+    }
+
+    // Persecucion final en zigzag: H puerta de inicio, j zanja (saltar), c cables bajos y k tuberia que cae (agacharse),
+    // f masa que cierra el paso (antidoto), Z compuerta con la luz del amanecer.
+    static readonly string[] DawnMap = {
+        "#############",
+        "#H..j...c...#",
+        "###########.#",
+        "#...k..f..j.#",
+        "#.###########",
+        "#..j...cc...#",
+        "###########.#",
+        "#Z...j..k...#",
+        "#############",
+    };
+
+    // ===================== CAPITULO 5: LA LUZ DEL DIA =====================
+    static void BuildDawn() {
+        NewScene("C5_LuzDelDia", root => {
+            Atmosphere(new Color(.06f, .03f, .03f), new Color(.02f, .006f, .006f), .04f);
+            var map = DawnMap;
+            Vector3 Pos(int x, int y) => new(x * Cell, 0, -y * Cell);
+            Grid(root, map, Cell, "");
+            var rng = new System.Random(5);
+            SewerFromMap(root, map, "", rng, (cell, k, open) => {
+                if (k == 'j') {
+                    Object.DestroyImmediate(cell.Find("Suelo").gameObject);
+                    var water = cell.Find("Agua");
+                    if (water != null) Object.DestroyImmediate(water.gameObject);
+                    for (int s = -1; s <= 1; s += 2) Box("Borde de la zanja", cell, new Vector3(s * 1.75f, -.2f, 0), new Vector3(2.5f, .4f, Cell), "Suelo");
+                    var pit = new GameObject("Fondo de la zanja");
+                    pit.transform.SetParent(cell, false);
+                    pit.transform.localPosition = Vector3.down * 3;
+                    var box = pit.AddComponent<BoxCollider>();
+                    box.size = new Vector3(1, 2, Cell);
+                    box.isTrigger = true;
+                    pit.AddComponent<DeathZone>();
+                    // Puente invisible que solo pisa la criatura (capa 10, que el jugador ignora).
+                    var bridge = new GameObject("Puente de la criatura");
+                    bridge.transform.SetParent(cell, false);
+                    bridge.transform.localPosition = Vector3.down * .2f;
+                    bridge.AddComponent<BoxCollider>().size = new Vector3(1, .4f, Cell);
+                    bridge.layer = 10;
+                }
+                // Cables bajos: capa 11, que la criatura atraviesa.
+                if (k == 'c') for (int i = 0; i < 2; i++) Cylinder("Cable bajo", cell, new Vector3(i * .5f - .25f, 1.25f + i * .1f, 0), .06f, Cell, new Vector3(90, 0, 0), "Zocalo", true).layer = 11;
+            });
+            int fall = 0;
+            foreach (var c in OpenCells(map).Where(c => map[c.y][c.x] == 'k')) {
+                var pipe = Cylinder("Tuberia que cae", root, Pos(c.x, c.y) + Vector3.up * 3.2f, .18f, Cell, new Vector3(90, 0, 0), "Oxido", true);
+                pipe.layer = 11;
+                var mover = pipe.AddComponent<EventMover>();
+                mover.eventId = "cae-" + fall;
+                mover.moveBy = Vector3.down * 1.85f;
+                mover.duration = .35f;
+                int dir = c.y == 3 || c.y == 7 ? 1 : -1;
+                Trigger("cae-" + fall, root, Pos(c.x + dir * 2, c.y) + Vector3.up * 1.5f, new Vector3(Cell, 3, Cell));
+                fall++;
+            }
+            foreach (var c in OpenCells(map).Where((c, i) => i % 3 == 1)) PointLight("Luz de alarma", root, Pos(c.x, c.y) + Vector3.up * (TunnelHeight - .5f), new Color(1, .15f, .1f), 11, 2.2f, true);
+
+            // Puerta pesada del inicio y su mecanismo.
+            var gate = Box("Compuerta pesada", root, Pos(1, 1) + new Vector3(2.75f, 1.8f, 0), new Vector3(.3f, 3.6f, 4.8f), "Puerta");
+            var mover0 = gate.AddComponent<EventMover>();
+            mover0.eventId = "puerta";
+            mover0.moveBy = Vector3.up * 3.3f;
+            mover0.duration = 2.5f;
+            var wheel = Cylinder("Mecanismo antiguo", root, Pos(1, 1) + new Vector3(2.45f, 1.5f, -.8f), .5f, .12f, new Vector3(0, 0, 90), "Oxido");
+            wheel.AddComponent<BoxCollider>().isTrigger = true;
+            Usable(wheel, "Girar el mecanismo con la llave", "puerta");
+
+            // Compuerta abierta con la luz del amanecer.
+            var exit = Point("Salida al amanecer", root, Pos(1, 7));
+            Box("Luz del amanecer", exit, new Vector3(-2.75f, 1.7f, 0), new Vector3(.05f, 3.2f, 4.6f), "Amanecer", false);
+            var sun = new GameObject("Sol").AddComponent<Light>();
+            sun.transform.SetParent(exit, false);
+            sun.transform.localPosition = new Vector3(-2, 2.5f, 0);
+            sun.transform.localRotation = Quaternion.Euler(10, 90, 0);
+            sun.type = LightType.Spot;
+            sun.spotAngle = 100;
+            sun.range = 30;
+            sun.intensity = 8;
+            sun.color = new Color(1, .82f, .6f);
+            sun.shadows = LightShadows.None;
+            Trigger("salida", root, Pos(1, 7) + Vector3.up * 1.5f, new Vector3(Cell, 3, Cell));
+
+            var player = Player(root, true, new Color(.02f, .006f, .006f));
+            player.floorNoise = 1.2f;
+            Spawn("puerta", root, Pos(1, 1) + Vector3.up * .05f, 90);
+            Spawn("tramo2", root, Pos(11, 2) + Vector3.up * .05f, 180);
+            Spawn("tramo3", root, Pos(1, 4) + Vector3.up * .05f, 180);
+            Spawn("tramo4", root, Pos(11, 6) + Vector3.up * .05f, 180);
+
+            var hunter = Creature(root, Pos(1, 1), true);
+            hunter.chaseSpeed = 3.9f;
+            hunter.giveUpSeconds = 999;
+            var blocker = Creature(root, Pos(5, 3), true, .55f);
+            blocker.giveUpSeconds = 999;
+            foreach (var t in hunter.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = 9;
+            foreach (var t in blocker.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = 9;
+            var chase = new GameObject("Persecucion").AddComponent<Chapter5Chase>();
+            chase.transform.SetParent(root, false);
+            chase.hunter = hunter;
+            chase.blocker = blocker;
+            chase.segmentStarts = new[] { Point("Inicio tramo 1", root, Pos(1, 1)), Point("Inicio tramo 2", root, Pos(11, 1)), Point("Inicio tramo 3", root, Pos(1, 3)), Point("Inicio tramo 4", root, Pos(11, 5)) };
+            chase.blockerAt = Point("Masa que cierra el paso", root, Pos(5, 3));
+            chase.exitPoint = exit;
+            chase.retreatTo = Point("La masa retrocede", root, Pos(6, 7));
+            chase.door = mover0;
+            Trigger("bloqueo", root, Pos(9, 3) + Vector3.up * 1.5f, new Vector3(Cell, 3, Cell));
+            Trigger("tramo2", root, Pos(11, 2) + Vector3.up * 1.5f, new Vector3(Cell, 3, Cell));
+            Trigger("tramo3", root, Pos(1, 4) + Vector3.up * 1.5f, new Vector3(Cell, 3, Cell));
+            Trigger("tramo4", root, Pos(11, 6) + Vector3.up * 1.5f, new Vector3(Cell, 3, Cell));
+
+            var story = Systems(root);
+            var open = Step("Gira el mecanismo de la puerta", "puerta",
+                "La llave encajaba en la cerradura. Tras la puerta, una corriente de aire frio. Mas alla estaba la salida.");
+            open.marker = wheel.transform;
+            open.checkpoint = true;
+            open.checkpointSpawn = "puerta";
+            var run1 = Step("¡Corre!", "tramo2", "Comenzo la ultima persecucion. Salta las zanjas (Espacio) y agachate bajo los cables (C).");
+            run1.raiseOnStart = "tramo-1";
+            run1.checkpoint = true;
+            run1.checkpointSpawn = "puerta";
+            var run2 = Step("¡Corre!", "tramo3", "Si una criatura te cierra el paso, usa el antidoto (Q).");
+            run2.raiseOnStart = "tramo-2";
+            run2.checkpoint = true;
+            run2.checkpointSpawn = "tramo2";
+            var run3 = Step("¡Corre!", "tramo4", "Adrenalina (R): recupera velocidad unos segundos. Solo tienes dos dosis.");
+            run3.raiseOnStart = "tramo-3";
+            run3.checkpoint = true;
+            run3.checkpointSpawn = "tramo3";
+            var run4 = Step("¡Corre hacia la luz!", "final", "Al final del tunel aparecio una compuerta abierta.");
+            run4.raiseOnStart = "tramo-4";
+            run4.checkpoint = true;
+            run4.checkpointSpawn = "tramo4";
+            run4.marker = exit;
+            run4.completeChapterTitle = "Fin del capitulo 5";
+            story.steps = new List<ObjectiveStep> { open, run1, run2, run3, run4 };
+        });
+    }
+
+    // ===================== EPILOGO (Timeline + Cinemachine) =====================
+    static void BuildEpilogue() {
+        const string folder = "Assets/ElDesecho/Epilogue";
+        System.IO.Directory.CreateDirectory(folder);
+        var photos = new List<Material>();
+        foreach (var name in new[] { "04-laboratorio", "08-laboratorio-rojo", "10-camino-largo" }) {
+            string from = "Verification/" + name + ".png", to = folder + "/" + name + ".png";
+            if (!System.IO.File.Exists(from)) continue;
+            System.IO.File.Copy(from, to, true);
+            AssetDatabase.ImportAsset(to);
+            var m = Save("Foto " + name, new Material(Shader.Find("Universal Render Pipeline/Unlit")));
+            m.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(to));
+            EditorUtility.SetDirty(m);
+            photos.Add(m);
+        }
+        NewScene("E_Epilogo", root => {
+            Atmosphere(new Color(.15f, .15f, .16f), new Color(.02f, .02f, .025f), .02f);
+            var camObject = new GameObject("Camara del epilogo");
+            camObject.tag = "MainCamera";
+            camObject.transform.SetParent(root, false);
+            var cam = camObject.AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = Color.black;
+            cam.nearClipPlane = .05f;
+            camObject.AddComponent<AudioListener>();
+            var brain = camObject.AddComponent<Unity.Cinemachine.CinemachineBrain>();
+
+            Unity.Cinemachine.CinemachineCamera Shot(string name, Vector3 at, Vector3 look, Vector3 drift) {
+                var g = new GameObject("Plano: " + name);
+                g.transform.SetParent(root, false);
+                g.transform.position = at;
+                g.transform.rotation = Quaternion.LookRotation(look - at);
+                g.AddComponent<CameraDrift>().velocity = drift;
+                var vcam = g.AddComponent<Unity.Cinemachine.CinemachineCamera>();
+                vcam.Lens.FieldOfView = 50;
+                return vcam;
+            }
+
+            // 1. Las noticias.
+            var news = Point("Noticias", root, Vector3.zero);
+            Box("Mesa", news, new Vector3(0, .4f, 0), new Vector3(2.4f, .8f, 1.4f), "Mesa");
+            Box("Periodico", news, new Vector3(0, .81f, 0), new Vector3(1.2f, .01f, .8f), "Papel", false);
+            var headline = new GameObject("Titular");
+            headline.transform.SetParent(news, false);
+            headline.transform.localPosition = new Vector3(0, .83f, .25f);
+            headline.transform.localRotation = Quaternion.Euler(90, 0, 0);
+            var text = headline.AddComponent<TextMesh>();
+            var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.font = font;
+            headline.GetComponent<MeshRenderer>().sharedMaterial = font.material;
+            text.text = "LABORATORIO SECRETO\nBAJO LA CIUDAD";
+            text.color = Color.black;
+            text.characterSize = .012f;
+            text.fontSize = 64;
+            text.anchor = TextAnchor.MiddleCenter;
+            for (int i = 0; i < photos.Count; i++) {
+                var photo = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                photo.name = "Fotografia";
+                photo.transform.SetParent(news, false);
+                photo.transform.localPosition = new Vector3(-.35f + i * .35f, .825f, -.15f);
+                photo.transform.localRotation = Quaternion.Euler(90, 0, 0);
+                photo.transform.localScale = new Vector3(.32f, .18f, 1);
+                photo.GetComponent<Renderer>().sharedMaterial = photos[i];
+                Object.DestroyImmediate(photo.GetComponent<Collider>());
+            }
+            PointLight("Lampara", news, new Vector3(.4f, 2, .3f), new Color(1, .9f, .7f), 6, 3);
+
+            // 2. El laboratorio clausurado.
+            var closed = Point("Laboratorio clausurado", root, new Vector3(100, 0, 0));
+            Box("Pared", closed, new Vector3(0, 1.8f, 1), new Vector3(8, 3.6f, .3f), "PanelBlanco");
+            Box("Puerta", closed, new Vector3(0, 1.25f, .8f), new Vector3(1.6f, 2.5f, .15f), "Puerta");
+            for (int i = 0; i < 2; i++) Box("Cinta", closed, new Vector3(0, 1.3f, .7f), new Vector3(2.6f, .12f, .02f), "Cinta", false).transform.localRotation = Quaternion.Euler(0, 0, i == 0 ? 25 : -25);
+            var sealedSign = new GameObject("Clausurado");
+            sealedSign.transform.SetParent(closed, false);
+            sealedSign.transform.localPosition = new Vector3(0, 2.8f, .6f);
+            sealedSign.transform.localRotation = Quaternion.Euler(0, 180, 0);
+            var sealedText = sealedSign.AddComponent<TextMesh>();
+            sealedText.font = font;
+            sealedSign.GetComponent<MeshRenderer>().sharedMaterial = font.material;
+            sealedText.text = "CLAUSURADO";
+            sealedText.color = new Color(.8f, .1f, .1f);
+            sealedText.characterSize = .05f;
+            sealedText.fontSize = 64;
+            sealedText.anchor = TextAnchor.MiddleCenter;
+            PointLight("Luz azul", closed, new Vector3(-2, 2, -1), new Color(.2f, .3f, 1), 8, 3, true);
+            PointLight("Luz roja", closed, new Vector3(2, 2, -1), new Color(1, .1f, .1f), 8, 3, true);
+
+            // 3. La institucion: el periodista internado.
+            var ward = Point("Institucion", root, new Vector3(200, 0, 0));
+            Box("Suelo", ward, new Vector3(0, -.1f, 0), new Vector3(5, .2f, 5), "Azulejo");
+            Box("Pared", ward, new Vector3(0, 1.5f, 2.5f), new Vector3(5, 3, .2f), "PanelBlanco");
+            Box("Pared", ward, new Vector3(-2.5f, 1.5f, 0), new Vector3(.2f, 3, 5), "PanelBlanco");
+            Box("Cama", ward, new Vector3(-1.2f, .3f, 1.2f), new Vector3(1, .6f, 2), "Bata");
+            Cylinder("Periodista", ward, new Vector3(-1.2f, 1.05f, .6f), .25f, 1, Vector3.zero, "Bata", true);
+            var head = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            head.transform.SetParent(ward, false);
+            head.transform.localPosition = new Vector3(-1.2f, 1.75f, .6f);
+            head.transform.localScale = Vector3.one * .26f;
+            Finish(head, "Piel", false);
+            PointLight("Luz de la celda", ward, new Vector3(0, 2.8f, 0), new Color(.8f, .85f, .9f), 6, 1.5f, true);
+
+            // 4 y 5. Los soldados con el antidoto y la masa que crece.
+            var tunnel = Point("Tuneles", root, new Vector3(300, 0, 0));
+            for (int i = 0; i < 3; i++) {
+                var c = Point("Tunel", tunnel, new Vector3(0, 0, i * Cell));
+                SewerCell(c, 1 | 4, false, 0);
+            }
+            for (int i = 0; i < 4; i++) {
+                var soldier = Point("Soldado", tunnel, new Vector3(-1.4f + i * .9f, 0, -1.2f - (i % 2) * .8f));
+                Cylinder("Uniforme", soldier, new Vector3(0, .9f, 0), .25f, 1.4f, Vector3.zero, "Uniforme", true);
+                var helmet = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                helmet.transform.SetParent(soldier, false);
+                helmet.transform.localPosition = Vector3.up * 1.75f;
+                helmet.transform.localScale = Vector3.one * .3f;
+                Finish(helmet, "Uniforme", false);
+                var lamp = new GameObject("Linterna").AddComponent<Light>();
+                lamp.transform.SetParent(soldier, false);
+                lamp.transform.localPosition = new Vector3(.2f, 1.4f, .2f);
+                lamp.type = LightType.Spot;
+                lamp.spotAngle = 40;
+                lamp.range = 14;
+                lamp.intensity = 4;
+                lamp.shadows = LightShadows.None;
+            }
+            var spray = Particles("Antidoto", tunnel, new Vector3(1, 1, 1), 40, 6, .12f, 1.2f, "Lluvia");
+            spray.transform.localPosition = new Vector3(0, 1.3f, -.6f);
+            spray.transform.localRotation = Quaternion.identity;
+            var sprayMain = spray.main;
+            sprayMain.startColor = new Color(.3f, 1, .4f, .5f);
+            spray.GetComponent<ParticleSystemRenderer>().renderMode = ParticleSystemRenderMode.Billboard;
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(CreatureSetup.PrefabPath);
+            PointLight("Luz del antidoto", tunnel, new Vector3(0, 2.6f, 7), new Color(.4f, 1, .5f), 10, 3.5f, true);
+            PointLight("Luz de los soldados", tunnel, new Vector3(.5f, 3, 3), new Color(.9f, .95f, 1), 12, 3);
+            PointLight("Luz sobre la boca", tunnel, new Vector3(0, 4.5f, 6.5f), new Color(1, .9f, .8f), 6, 2.5f);
+            Transform grower = null;
+            SkinnedMeshRenderer mouth = null;
+            for (int i = 0; i < 3; i++) {
+                var mass = (GameObject)PrefabUtility.InstantiatePrefab(prefab, tunnel);
+                mass.transform.localPosition = new Vector3(-1.6f + i * 1.6f, 0, 7 + (i % 2) * 1.5f);
+                mass.transform.localRotation = Quaternion.Euler(0, 180, 0);
+                mass.transform.localScale = Vector3.one * .6f;
+                if (i == 1) { grower = mass.transform; mouth = mass.GetComponentInChildren<SkinnedMeshRenderer>(); }
+            }
+
+            var shots = new[] {
+                (Shot("Noticias", new Vector3(.2f, 1.9f, -1.1f), new Vector3(0, .8f, 0), new Vector3(0, 0, .03f)), 0f, 9f),
+                (Shot("Clausurado", new Vector3(100, 1.6f, -4), new Vector3(100, 1.5f, 1), new Vector3(0, 0, .25f)), 9f, 7f),
+                (Shot("Institucion", new Vector3(201.6f, 1.7f, -1.8f), new Vector3(198.8f, 1.3f, .6f), new Vector3(0, 0, .12f)), 16f, 9f),
+                (Shot("Soldados", new Vector3(301.8f, 1.8f, -4), new Vector3(300, 1, 7), new Vector3(0, 0, .3f)), 25f, 9f),
+                (Shot("La masa crece", new Vector3(300.5f, 1.6f, 3), new Vector3(300, 1.5f, 8.5f), new Vector3(0, 0, .2f)), 34f, 7f),
+                (Shot("La boca", new Vector3(300, 3.4f, 5.4f), new Vector3(300, 3.4f, 8.5f), new Vector3(0, 0, .25f)), 41f, 7f),
+            };
+
+            var directorObject = new GameObject("Linea de tiempo del epilogo");
+            directorObject.transform.SetParent(root, false);
+            var director = directorObject.AddComponent<UnityEngine.Playables.PlayableDirector>();
+            director.playOnAwake = false;
+            string timelinePath = folder + "/Epilogo.playable";
+            AssetDatabase.DeleteAsset(timelinePath);
+            var timeline = ScriptableObject.CreateInstance<UnityEngine.Timeline.TimelineAsset>();
+            AssetDatabase.CreateAsset(timeline, timelinePath);
+            var track = timeline.CreateTrack<Unity.Cinemachine.CinemachineTrack>(null, "Camaras");
+            foreach (var (vcam, start, length) in shots) {
+                var clip = track.CreateClip<Unity.Cinemachine.CinemachineShot>();
+                clip.start = start;
+                clip.duration = length;
+                clip.displayName = vcam.name;
+                var shot = (Unity.Cinemachine.CinemachineShot)clip.asset;
+                string id = GUID.Generate().ToString();
+                shot.VirtualCamera = new ExposedReference<Unity.Cinemachine.CinemachineVirtualCameraBase> { exposedName = id };
+                director.SetReferenceValue(id, vcam);
+                EditorUtility.SetDirty(shot);
+            }
+            EditorUtility.SetDirty(timeline);
+            AssetDatabase.SaveAssets();
+            director.playableAsset = timeline;
+            director.SetGenericBinding(track, brain);
+
+            var epilogue = directorObject.AddComponent<EpilogueDirector>();
+            epilogue.director = director;
+            epilogue.grower = grower;
+            epilogue.mouth = mouth;
+            epilogue.roar = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/ElDesecho/Creature/Audio/Alert.wav");
+            epilogue.lines = new[] {
+                new EpilogueDirector.Line { at = .5f, text = "El periodista entrego las fotografias, la grabacion y los documentos a las autoridades." },
+                new EpilogueDirector.Line { at = 4.6f, text = "Su investigacion llego a las noticias." },
+                new EpilogueDirector.Line { at = 9.2f, text = "El laboratorio fue clausurado. Se desplegaron soldados y equipos cientificos para contener a las criaturas y estudiar el antidoto." },
+                new EpilogueDirector.Line { at = 16.2f, text = "Pero el periodista nunca volvio a ser el mismo. Sonaba con los pasillos rojos, con la alarma, con la masa acercandose por las paredes." },
+                new EpilogueDirector.Line { at = 21f, text = "Lo internaron. En las noches gritaba que las criaturas seguian alli y que alguien debia cerrar las alcantarillas." },
+                new EpilogueDirector.Line { at = 25.2f, text = "Un grupo de soldados entra en los tuneles con el antidoto." },
+                new EpilogueDirector.Line { at = 29.5f, text = "Al principio, el plan funciona: las criaturas quedan inmoviles." },
+                new EpilogueDirector.Line { at = 34.2f, text = "Entonces una de las masas se sacude. Su forma cambia y empieza a crecer." },
+                new EpilogueDirector.Line { at = 38.5f, text = "El antidoto ya no tiene efecto." },
+            };
         });
     }
 }

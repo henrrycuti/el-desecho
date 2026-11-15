@@ -70,11 +70,21 @@ public sealed class AutoPlaytest : MonoBehaviour {
     IEnumerator Travel(Vector3 target, float reach = 1.2f) {
         var grid = CellGrid.Instance;
         var player = FirstPersonController.Current;
+        if (player == null) { Fail("No hay jugador (la escena se reinicio)"); yield break; }
+        char previous = '#';
         if (grid != null) {
             foreach (var cell in grid.Path(grid.ToCell(player.transform.position), grid.ToCell(target), false)) {
-                player.BotCrouch = grid.At(cell) == 'd';
-                yield return Walk(grid.Center(cell), 1.3f);
-                if (failed || player == null) yield break;
+                char k = grid.At(cell);
+                // Agachado en conductos, cables y tuberias bajas, y una celda mas para no levantarse debajo.
+                player.BotCrouch = k is 'd' or 'c' or 'k' || previous is 'd' or 'c' or 'k';
+                previous = k;
+                player.BotJumpAt = k == 'j' ? grid.Center(cell) : (Vector3?)null;
+                // En las zanjas hay que llegar al centro: el salto se dispara a 1,3 m de el.
+                var aim = grid.Center(cell);
+                if (k == 'j') { var across = aim - player.transform.position; across.y = 0; aim += across.normalized * 2; }
+                yield return Walk(aim, k == 'j' ? .5f : 1.3f);
+                if (failed) yield break;
+                if (player == null) { Fail("El jugador murio o la escena se reinicio cerca de la celda " + cell); yield break; }
             }
         }
         yield return Walk(target, reach);
@@ -140,13 +150,13 @@ public sealed class AutoPlaytest : MonoBehaviour {
             save.Store();
             manager.Continue();
         }
-        var sections = new Func<IEnumerator>[] { Prologue, Chapter1, Chapter2, Chapter3, Chapter4 };
+        var sections = new Func<IEnumerator>[] { Prologue, Chapter1, Chapter2, Chapter3, Chapter4, Chapter5, Epilogue };
+        PlayerPrefs.DeleteKey("eldesecho.completado");
         for (int i = Mathf.Max(0, from); i < sections.Length && !failed; i++) yield return sections[i]();
         if (failed) yield break;
 
         yield return WaitScene(Chapters.MenuScene);
-        var saved = SaveGame.Load();
-        if (saved == null || saved.chapter != sections.Length) { Fail("No se guardo el paso al capitulo " + sections.Length); yield break; }
+        if (PlayerPrefs.GetInt("eldesecho.completado", 0) != 1) { Fail("El juego no termino"); yield break; }
         yield return Shot("99-menu-final");
         Debug.Log("ELDESECHO_PRUEBA_OK: capitulos " + from + " a " + (sections.Length - 1) + " completos y guardado del siguiente");
         Application.Quit(0);
@@ -274,6 +284,58 @@ public sealed class AutoPlaytest : MonoBehaviour {
         while (Time.time < until && !sawActive) { sawActive = jet.Active; yield return null; }
         if (!sawActive) { Fail("El vapor nunca se activa"); yield break; }
         yield return Travel(grid.Center(new Vector2Int(19, 11)));
+    }
+
+    IEnumerator Chapter5() {
+        yield return WaitScene("C5_LuzDelDia");
+        yield return Shot("18-puerta-pesada");
+        yield return Use("puerta");
+        if (Equipment.AdrenalineDoses < 2) { Fail("No hay dosis de adrenalina"); yield break; }
+        var grid = CellGrid.Instance;
+        yield return Travel(grid.Center(new Vector2Int(11, 1)));
+        yield return Shot("19-persecucion");
+        yield return Travel(grid.Center(new Vector2Int(9, 3)));
+        // Espera a que la masa que cierra el paso este cerca y la mira antes de usar el antidoto.
+        CreatureBrain blocker = null;
+        float wait = Time.time + 10;
+        while (Time.time < wait) {
+            foreach (var c in FindObjectsByType<CreatureBrain>(FindObjectsSortMode.None))
+                if (c.transform.localScale.x < 1 && c.State != CreatureState.Dormant) blocker = c;
+            if (blocker != null && Vector3.Distance(blocker.transform.position, FirstPersonController.Current.transform.position) < 6) break;
+            yield return null;
+        }
+        if (blocker == null) { Fail("No aparecio la masa que cierra el paso"); yield break; }
+        FirstPersonController.Current.LookAt(blocker.transform.position + Vector3.up);
+        bool used = PlayerTools.Current.UseAntidote();
+        bool stunned = false;
+        foreach (var c in FindObjectsByType<CreatureBrain>(FindObjectsSortMode.None)) stunned |= c.State == CreatureState.Stunned;
+        if (!used || !stunned) { Fail("El antidoto no detuvo a la masa que cierra el paso"); yield break; }
+        yield return Travel(grid.Center(new Vector2Int(1, 5)));
+        if (!PlayerTools.Current.UseDose() || FirstPersonController.Current.BoostLeft <= 0) { Fail("La dosis de adrenalina no funciono"); yield break; }
+        yield return Travel(grid.Center(new Vector2Int(11, 7)));
+        yield return Shot("20-ultimo-tramo");
+        yield return Travel(grid.Center(grid.Find('Z')));
+        yield return new WaitForSeconds(1.5f);
+        yield return Shot("21-amanecer");
+    }
+
+    IEnumerator Epilogue() {
+        yield return WaitScene("E_Epilogo");
+        var epilogue = FindFirstObjectByType<EpilogueDirector>();
+        if (epilogue == null) { Fail("No hay epilogo"); yield break; }
+        float[] moments = { 4, 12, 20, 29, 38, 44 };
+        string[] names = { "22-noticias", "23-clausurado", "24-internado", "25-soldados", "26-crece", "27-boca" };
+        for (int i = 0; i < moments.Length && !failed; i++) {
+            float until = Time.realtimeSinceStartup + 60;
+            while (epilogue.Time01 < moments[i] && Time.realtimeSinceStartup < until) yield return null;
+            if (epilogue.Time01 < moments[i]) { Fail("El epilogo no avanza"); yield break; }
+            yield return Shot(names[i]);
+        }
+        yield return new WaitForSeconds(3);
+        yield return Shot("28-creditos");
+        epilogue.Skip();
+        yield return WaitScene(Chapters.MenuScene);
+        if (PlayerPrefs.GetInt("eldesecho.completado", 0) != 1) { Fail("No se marco el juego como completado"); yield break; }
     }
 }
 }
