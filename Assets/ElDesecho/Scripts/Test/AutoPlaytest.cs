@@ -72,6 +72,7 @@ public sealed class AutoPlaytest : MonoBehaviour {
         var player = FirstPersonController.Current;
         if (player == null) { Fail("No hay jugador (la escena se reinicio)"); yield break; }
         char previous = '#';
+        string scene = SceneManager.GetActiveScene().name;
         if (grid != null) {
             foreach (var cell in grid.Path(grid.ToCell(player.transform.position), grid.ToCell(target), false)) {
                 char k = grid.At(cell);
@@ -84,7 +85,11 @@ public sealed class AutoPlaytest : MonoBehaviour {
                 if (k == 'j') { var across = aim - player.transform.position; across.y = 0; aim += across.normalized * 2; }
                 yield return Walk(aim, k == 'j' ? .5f : 1.3f);
                 if (failed) yield break;
-                if (player == null) { Fail("El jugador murio o la escena se reinicio cerca de la celda " + cell); yield break; }
+                if (player == null) {
+                    // Otra escena: el capitulo termino. La misma escena: el jugador murio y se reinicio.
+                    if (SceneManager.GetActiveScene().name == scene) Fail("El jugador murio y se reinicio la escena cerca de la celda " + cell);
+                    yield break;
+                }
             }
         }
         yield return Walk(target, reach);
