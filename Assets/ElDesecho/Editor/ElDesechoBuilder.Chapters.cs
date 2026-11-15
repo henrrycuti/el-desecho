@@ -69,11 +69,16 @@ public static partial class ElDesechoBuilder {
 
     static Vector3 LabPos(int x, int y) => new(x * LabCell, 0, -y * LabCell);
 
-    static CreatureBrain Creature(Transform parent, Vector3 position, bool dormant) {
+    // scale < 1: una de las masas pequenas en que se dividio el compuesto (mismo modelo, mas rapida).
+    static CreatureBrain Creature(Transform parent, Vector3 position, bool dormant, float scale = 1) {
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(CreatureSetup.PrefabPath);
         if (prefab == null) { CreatureSetup.Prepare(); prefab = AssetDatabase.LoadAssetAtPath<GameObject>(CreatureSetup.PrefabPath); }
         var creature = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
         creature.transform.localPosition = position;
+        creature.transform.localScale = Vector3.one * scale;
+        var xray = creature.AddComponent<XRayTarget>();
+        xray.kind = XRayKind.Creature;
+        xray.offset = Vector3.up * 1.4f * scale;
         var body = creature.AddComponent<CharacterController>();
         body.height = 2.35f;
         body.radius = .34f;
@@ -86,6 +91,12 @@ public static partial class ElDesechoBuilder {
         brain.stepClip = AssetDatabase.LoadAssetAtPath<AudioClip>(audio + "Step.wav");
         brain.alertClip = AssetDatabase.LoadAssetAtPath<AudioClip>(audio + "Alert.wav");
         brain.attackClip = AssetDatabase.LoadAssetAtPath<AudioClip>(audio + "Attack.wav");
+        if (scale < 1) {
+            brain.patrolSpeed = 1.6f;
+            brain.investigateSpeed = 2.6f;
+            brain.chaseSpeed = 3.9f;
+            brain.catchDistance = 1;
+        }
         return brain;
     }
 

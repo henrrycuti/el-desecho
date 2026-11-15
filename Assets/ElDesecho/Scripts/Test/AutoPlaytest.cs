@@ -43,7 +43,7 @@ public sealed class AutoPlaytest : MonoBehaviour {
         var manager = ChapterManager.Instance;
         float until = Time.realtimeSinceStartup + 40;
         while (SceneManager.GetActiveScene().name != scene || manager.Busy) {
-            if (Time.realtimeSinceStartup > until) { Fail("No se cargo " + scene); yield break; }
+            if (Time.realtimeSinceStartup > until) { Fail("No se cargo " + scene + " (ocupado " + manager.Busy + ", fundido " + manager.Fade + ")"); yield break; }
             yield return null;
         }
         yield return new WaitForSecondsRealtime(.5f);
@@ -118,13 +118,41 @@ public sealed class AutoPlaytest : MonoBehaviour {
         }
     }
 
+    // Capitulo desde el que empieza la prueba (-elDesechoTestDesde=3). 0 = desde el menu.
+    static int StartChapter() {
+        foreach (var a in Environment.GetCommandLineArgs())
+            if (a.StartsWith("-elDesechoTestDesde=") && int.TryParse(a.Substring(20), out int n)) return n;
+        return 0;
+    }
+
     IEnumerator Run() {
         var manager = ChapterManager.Instance;
         yield return WaitScene(Chapters.MenuScene);
         yield return Shot("01-menu");
-        manager.NewGame();
+        int from = StartChapter();
+        if (from == 0) manager.NewGame();
+        else {
+            Equipment.Reset();
+            if (from >= 4) Equipment.Goggles = Equipment.Key = Equipment.Antidote = true;
+            var chapter = Chapters.All[from];
+            var save = new SaveGame { chapter = from, scene = chapter.firstScene, spawn = chapter.spawn };
+            Equipment.Store(save);
+            save.Store();
+            manager.Continue();
+        }
+        var sections = new Func<IEnumerator>[] { Prologue, Chapter1, Chapter2, Chapter3 };
+        for (int i = Mathf.Max(0, from); i < sections.Length && !failed; i++) yield return sections[i]();
+        if (failed) yield break;
 
-        // ---------- Prologo ----------
+        yield return WaitScene(Chapters.MenuScene);
+        var saved = SaveGame.Load();
+        if (saved == null || saved.chapter != sections.Length) { Fail("No se guardo el paso al capitulo " + sections.Length); yield break; }
+        yield return Shot("99-menu-final");
+        Debug.Log("ELDESECHO_PRUEBA_OK: capitulos " + from + " a " + (sections.Length - 1) + " completos y guardado del siguiente");
+        Application.Quit(0);
+    }
+
+    IEnumerator Prologue() {
         yield return WaitScene("P0_Calle");
         yield return Shot("02-calle");
         var route = FindFirstObjectByType<BotRoute>();
@@ -137,8 +165,9 @@ public sealed class AutoPlaytest : MonoBehaviour {
         for (int i = 0; i < gps.Length && !failed; i++) yield return Walk(gps[i].position, 1.4f);
         yield return Shot("03-prologo-puerta");
         yield return Use("puerta-laboratorio");
+    }
 
-        // ---------- Capitulo 1 ----------
+    IEnumerator Chapter1() {
         yield return WaitScene("C1_Laboratorio");
         if (!Equipment.Flashlight || !Equipment.Gps) { Fail("Al llegar al laboratorio deberia llevar linterna y GPS"); yield break; }
         yield return Shot("04-laboratorio");
@@ -170,18 +199,21 @@ public sealed class AutoPlaytest : MonoBehaviour {
         yield return Use("gps");
         if (!Equipment.Gps) { Fail("No se recupero el GPS"); yield break; }
         yield return Use("salida");
+    }
 
-        // ---------- Capitulo 2 ----------
+    IEnumerator Chapter2() {
+        var manager = ChapterManager.Instance;
         yield return WaitScene("C2_TresCaminos");
         yield return Shot("09-cruce");
         yield return Use("plano");
         yield return SkipDialogue();
         int stepBefore = ObjectiveManager.Instance.Index;
+        int caughtBefore = manager.TimesCaught;
         manager.Caught();
         yield return WaitScene("C2_TresCaminos");
-        if (manager.TimesCaught != 1 || ObjectiveManager.Instance.Index != stepBefore) { Fail("Al ser atrapado no volvio al punto de control del cruce"); yield break; }
+        if (manager.TimesCaught != caughtBefore + 1 || ObjectiveManager.Instance.Index != stepBefore) { Fail("Al ser atrapado no volvio al punto de control del cruce"); yield break; }
         yield return SkipDialogue();
-        grid = CellGrid.Instance;
+        var grid = CellGrid.Instance;
         yield return Travel(grid.Center(new Vector2Int(12, 3)));
         yield return Shot("10-camino-largo");
         yield return Travel(grid.Center(new Vector2Int(14, 9)));
@@ -190,14 +222,36 @@ public sealed class AutoPlaytest : MonoBehaviour {
         if (FirstPersonController.Current.BoostLeft <= 0) { Fail("La adrenalina no hizo efecto"); yield break; }
         yield return Shot("11-persecucion");
         yield return Travel(grid.Center(grid.Find('Z')));
+    }
 
-        yield return WaitScene(Chapters.MenuScene);
-        var save = SaveGame.Load();
-        if (save == null || save.chapter != 3) { Fail("No se guardo el paso al capitulo 3"); yield break; }
-        yield return Shot("12-menu-final");
-        if (failed) yield break;
-        Debug.Log("ELDESECHO_PRUEBA_OK: prologo, capitulo 1 (fotos, cientifico, ataque, linterna, GPS) y capitulo 2 (plano, reintento, camino largo, adrenalina, conducto) con guardado del capitulo 3");
-        Application.Quit(0);
+    IEnumerator Chapter3() {
+        yield return WaitScene("C3_Investigacion");
+        yield return Shot("12-investigacion");
+        var grid = CellGrid.Instance;
+        yield return Travel(grid.Center(new Vector2Int(12, 4)));
+        yield return WaitStep(1, 5);
+        yield return Use("gafas");
+        var tools = PlayerTools.Current;
+        if (!Equipment.Goggles || !tools.ToggleGoggles() || !tools.GogglesOn) { Fail("Las gafas no se activan"); yield break; }
+        yield return new WaitForSeconds(.6f);
+        yield return Shot("13-gafas");
+        if (tools.Battery >= tools.batterySeconds) { Fail("Las gafas no gastan bateria"); yield break; }
+        tools.ToggleGoggles();
+        yield return Use("cuerpo");
+        yield return SkipDialogue();
+        yield return WaitStep(4, 10);
+        if (!Equipment.Key || !Equipment.Antidote) { Fail("El cuerpo no dio la llave y el antidoto"); yield break; }
+        var player = FirstPersonController.Current;
+        var small = FindFirstObjectByType<CreatureBrain>();
+        small.Teleport(player.transform.position + player.transform.forward * 3);
+        yield return null;
+        bool used = tools.UseAntidote();
+        bool stunned = false;
+        foreach (var c in FindObjectsByType<CreatureBrain>(FindObjectsSortMode.None)) stunned |= c.State == CreatureState.Stunned;
+        if (!used || !stunned) { Fail("El antidoto no detuvo a la criatura (usado " + used + ")"); yield break; }
+        Debug.Log("ELDESECHO_PRUEBA: el antidoto detuvo a una criatura");
+        yield return Shot("14-antidoto");
+        yield return Use("puerta-reforzada");
     }
 }
 }

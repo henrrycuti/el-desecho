@@ -31,7 +31,7 @@ public sealed class Interactable : MonoBehaviour {
     public void Use() {
         if (!Available) return;
         used = true;
-        if (!string.IsNullOrEmpty(give)) Equipment.Give(give);
+        if (!string.IsNullOrEmpty(give)) foreach (var item in give.Split(',')) Equipment.Give(item.Trim());
         if (photo) Hud.Flash();
         if (!string.IsNullOrEmpty(sayOnUse)) ObjectiveManager.Instance?.Say(sayOnUse);
         StoryEvents.Raise(eventId);

@@ -19,6 +19,9 @@ public sealed class CreatureBrain : MonoBehaviour {
     public CreatureState State { get; private set; } = CreatureState.Patrol;
     public float LastHeardAt { get; private set; } = -100;
     public bool Harmless { get; set; }
+    // Persecucion final: sabe donde esta el jugador aunque no haga ruido.
+    public bool Hunting { get; set; }
+    float huntRefresh;
 
     CharacterController body;
     Animator animator;
@@ -148,6 +151,12 @@ public sealed class CreatureBrain : MonoBehaviour {
 
     void Update() {
         if (State == CreatureState.Dormant) return;
+        var hunted = FirstPersonController.Current;
+        if (Hunting && hunted != null && Time.time > huntRefresh && State is CreatureState.Patrol or CreatureState.Investigate or CreatureState.Chase) {
+            huntRefresh = Time.time + .4f;
+            if (State != CreatureState.Chase) StartChase(hunted.transform.position);
+            else { LastHeardAt = Time.time; RouteTo(hunted.transform.position); }
+        }
         float speed = 0;
         switch (State) {
             case CreatureState.Stunned:

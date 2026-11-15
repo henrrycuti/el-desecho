@@ -43,13 +43,15 @@ public static partial class ElDesechoBuilder {
         ConfigureProject();
         MakeMaterials();
         MakeChapterMaterials();
+        MakeLateMaterials();
         MakeKitPrefabs();
         BuildMenu();
         BuildStreet();
         BuildSewer();
         BuildLab();
         BuildThreePaths();
-        EditorBuildSettings.scenes = new[] { "Menu", "P0_Calle", "P1_Alcantarilla", "C1_Laboratorio", "C2_TresCaminos" }
+        BuildInvestigation();
+        EditorBuildSettings.scenes = new[] { "Menu", "P0_Calle", "P1_Alcantarilla", "C1_Laboratorio", "C2_TresCaminos", "C3_Investigacion" }
             .Select(n => new EditorBuildSettingsScene($"{Scenes}/{n}.unity", true)).ToArray();
         AssetDatabase.SaveAssets();
         Debug.Log("ELDESECHO_PROLOGO_CONSTRUIDO");

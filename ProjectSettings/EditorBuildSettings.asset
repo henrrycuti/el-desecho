@@ -20,4 +20,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/ElDesecho/Scenes/C2_TresCaminos.unity
     guid: 191003ef4ce0ccf42835d46cdfda3309
+  - enabled: 1
+    path: Assets/ElDesecho/Scenes/C3_Investigacion.unity
+    guid: 586d5513e949fee4cb6c6f6dc8b42426
   m_configObjects: {}

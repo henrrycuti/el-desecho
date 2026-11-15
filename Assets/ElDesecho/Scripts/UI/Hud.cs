@@ -54,6 +54,7 @@ public sealed class Hud : MonoBehaviour {
             Ui.Shadowed(new Rect(w * .2f, 18 * s, w * .6f, 40 * s), text, style);
         }
 
+        DrawGoggles(s, w, h);
         if (!objectives.InDialogue) {
             DrawMarker(player, step, s);
             DrawGps(player, objectives, s, w);
@@ -102,6 +103,44 @@ public sealed class Hud : MonoBehaviour {
         string status = player.Trapped ? "¡ATRAPADO EN UNA TRAMPA!" : player.Hidden ? "ESCONDIDO" : player.BoostLeft > 0 ? "ADRENALINA " + Mathf.CeilToInt(player.BoostLeft) + " s" : null;
         if (status != null) Ui.Shadowed(new Rect(20 * s, h - 126 * s, 400 * s, 30 * s), status, Ui.Label(Mathf.RoundToInt(18 * s), TextAnchor.UpperLeft, FontStyle.Bold));
         else if (!Equipment.Flashlight) Ui.Shadowed(new Rect(20 * s, h - 126 * s, 400 * s, 30 * s), "Sin linterna", Ui.Label(Mathf.RoundToInt(15 * s)));
+        DrawTools(player, s, h);
+    }
+
+    // Gafas, antidoto y adrenalina: solo lo que el jugador ya tiene.
+    static void DrawTools(FirstPersonController player, float s, float h) {
+        var tools = player.Tools;
+        if (tools == null) return;
+        var style = Ui.Label(Mathf.RoundToInt(15 * s));
+        float y = h - 70 * s;
+        string keys = TouchControls.Enabled ? "" : "G ";
+        if (Equipment.Goggles) {
+            var bar = new Rect(200 * s, y, 120 * s, 8 * s);
+            Ui.Fill(bar, new Color(1, 1, 1, .12f));
+            Ui.Fill(new Rect(bar.x, bar.y, bar.width * tools.Battery / tools.batterySeconds, bar.height), tools.Recharging ? new Color(1, .4f, .2f, .8f) : new Color(.4f, 1, .5f, .8f));
+            GUI.Label(new Rect(bar.x, bar.y - 20 * s, 220 * s, 20 * s), keys + (tools.Recharging ? "GAFAS recargando" : "GAFAS"), style);
+        }
+        if (Equipment.Antidote) GUI.Label(new Rect(340 * s, y - 20 * s, 220 * s, 22 * s), (TouchControls.Enabled ? "" : "Q ") + (tools.AntidoteReadyIn > 0 ? "ANTIDOTO " + Mathf.CeilToInt(tools.AntidoteReadyIn) + " s" : "ANTIDOTO listo"), style);
+        if (Equipment.AdrenalineDoses > 0) GUI.Label(new Rect(500 * s, y - 20 * s, 220 * s, 22 * s), (TouchControls.Enabled ? "" : "R ") + "ADRENALINA x" + Equipment.AdrenalineDoses, style);
+    }
+
+    // Vision de las gafas: tinte verde y, a traves de las paredes, criaturas (rojo), objetos (amarillo) y pasillos bloqueados (naranja).
+    static void DrawGoggles(float s, float w, float h) {
+        var tools = PlayerTools.Current;
+        var cam = Camera.main;
+        if (tools == null || !tools.GogglesOn || cam == null) return;
+        Ui.Fill(new Rect(0, 0, w, h), new Color(.1f, .6f, .25f, .16f));
+        for (float y = 0; y < h; y += 6 * s) Ui.Fill(new Rect(0, y, w, 1), new Color(0, 0, 0, .12f));
+        foreach (var t in Object.FindObjectsByType<XRayTarget>(FindObjectsSortMode.None)) {
+            if (!t.isActiveAndEnabled) continue;
+            var p = cam.WorldToScreenPoint(t.Position);
+            if (p.z <= 0 || p.z > 45) continue;
+            var color = t.kind == XRayKind.Creature ? new Color(1, .2f, .15f) : t.kind == XRayKind.Item ? new Color(1, .9f, .3f) : new Color(1, .55f, .1f);
+            string mark = t.kind == XRayKind.Creature ? "●" : t.kind == XRayKind.Item ? "◆" : "✕";
+            var style = Ui.Label(Mathf.RoundToInt((t.kind == XRayKind.Creature ? 34 : 26) * s), TextAnchor.MiddleCenter, FontStyle.Bold);
+            style.normal.textColor = color;
+            var r = new Rect(p.x - 60 * s, h - p.y - 30 * s, 120 * s, 60 * s);
+            GUI.Label(r, mark + "\n" + (string.IsNullOrEmpty(t.label) ? "" : t.label + " ") + Mathf.RoundToInt(p.z) + " m", style);
+        }
     }
 
     static void DrawMarker(FirstPersonController player, ObjectiveStep step, float s) {

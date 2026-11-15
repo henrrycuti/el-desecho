@@ -26,6 +26,10 @@ public sealed class FirstPersonController : MonoBehaviour {
     public bool Trapped => Time.time < trappedUntil;
     public float BoostLeft => Mathf.Max(0, boostUntil - Time.time);
     public bool BotCrouch { get; set; }
+    // Prueba automatica: salta al llegar cerca de este punto.
+    public Vector3? BotJumpAt { get; set; }
+    public float jumpSpeed = 5.6f;
+    public PlayerTools Tools { get; private set; }
 
     CharacterController body;
     float pitch, verticalSpeed, bobPhase, stepTimer, trappedUntil, boostUntil, shake;
@@ -37,6 +41,7 @@ public sealed class FirstPersonController : MonoBehaviour {
         Current = this;
         body = GetComponent<CharacterController>();
         Touch = gameObject.AddComponent<TouchControls>();
+        Tools = gameObject.AddComponent<PlayerTools>();
         mouseSensitivity *= PlayerPrefs.GetFloat("eldesecho.sensibilidad", 1);
         touchSensitivity *= PlayerPrefs.GetFloat("eldesecho.sensibilidad", 1);
     }
@@ -92,7 +97,7 @@ public sealed class FirstPersonController : MonoBehaviour {
         var kb = ChapterManager.TestMode ? null : Keyboard.current;
         var mouse = ChapterManager.TestMode ? null : Mouse.current;
         Vector2 move = Vector2.zero, look = Vector2.zero;
-        bool run = false, crouch = Crouched, interact = false, light = false;
+        bool run = false, crouch = Crouched, interact = false, light = false, jump = false;
         bool advance = kb != null && (kb.eKey.wasPressedThisFrame || kb.enterKey.wasPressedThisFrame || kb.spaceKey.wasPressedThisFrame)
                        || mouse != null && mouse.leftButton.wasPressedThisFrame || !ChapterManager.TestMode && Touch.InteractPressed;
         if (!locked) {
@@ -102,6 +107,7 @@ public sealed class FirstPersonController : MonoBehaviour {
                 crouch = kb.cKey.isPressed || kb.leftCtrlKey.isPressed;
                 interact = kb.eKey.wasPressedThisFrame;
                 light = kb.fKey.wasPressedThisFrame;
+                jump = kb.spaceKey.wasPressedThisFrame;
             }
             if (mouse != null && Cursor.lockState == CursorLockMode.Locked) {
                 look = mouse.delta.ReadValue() * mouseSensitivity;
@@ -114,6 +120,7 @@ public sealed class FirstPersonController : MonoBehaviour {
                 crouch |= Touch.CrouchHeld;
                 interact |= Touch.InteractPressed;
                 light |= Touch.LightPressed;
+                jump |= Touch.JumpPressed;
             }
         } else if (Trapped) {
             crouch = Crouched;
@@ -125,6 +132,11 @@ public sealed class FirstPersonController : MonoBehaviour {
             if (to.sqrMagnitude > .01f) transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(to), 540 * Time.deltaTime);
             move = Vector2.up;
             run = !Crouched;
+            if (BotJumpAt.HasValue) {
+                var j = BotJumpAt.Value - transform.position;
+                j.y = 0;
+                if (j.magnitude < 1.7f && body.isGrounded) { jump = true; BotJumpAt = null; }
+            }
         }
         if (BotCrouch) crouch = true;
 
@@ -138,7 +150,10 @@ public sealed class FirstPersonController : MonoBehaviour {
         bool running = run && !Crouched;
         float speed = (Crouched ? crouchSpeed : running ? (boosted ? adrenalineSpeed : runSpeed) : boosted ? runSpeed : walkSpeed) * zoneSpeed;
         var direction = Vector3.ClampMagnitude(transform.TransformDirection(new Vector3(move.x, 0, move.y)), 1);
-        verticalSpeed = body.isGrounded ? -2 : verticalSpeed - gravity * Time.deltaTime;
+        if (jump && body.isGrounded && !Crouched) {
+            verticalSpeed = jumpSpeed;
+            Noise.Emit(transform.position, 8 * zoneNoise);
+        } else verticalSpeed = body.isGrounded && verticalSpeed <= 0 ? -2 : verticalSpeed - gravity * Time.deltaTime;
         body.Move((direction * speed + Vector3.up * verticalSpeed) * Time.deltaTime);
 
         // Pasos: cada paso emite ruido segun como se mueve el jugador.

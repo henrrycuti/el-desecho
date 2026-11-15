@@ -15,13 +15,25 @@ public sealed class TouchControls : MonoBehaviour {
     public bool CrouchHeld { get; private set; }
     public bool RunHeld { get; private set; }
     public bool PausePressed { get; private set; }
+    public bool JumpPressed { get; private set; }
+    public bool GogglesPressed { get; private set; }
+    public bool AntidotePressed { get; private set; }
+    public bool DosePressed { get; private set; }
 
     const float StickRadius = 70;
     int moveId = -1, lookId = -1;
     Vector2 moveOrigin, movePoint;
 
-    enum Action { Interact, Light, Crouch, Run, Pause }
-    static readonly Action[] Actions = { Action.Interact, Action.Light, Action.Crouch, Action.Run, Action.Pause };
+    enum Action { Interact, Light, Crouch, Run, Pause, Jump, Goggles, Antidote, Dose }
+    static readonly Action[] Actions = { Action.Interact, Action.Light, Action.Crouch, Action.Run, Action.Pause, Action.Jump, Action.Goggles, Action.Antidote, Action.Dose };
+
+    // Los botones de herramientas solo aparecen cuando el jugador ya las tiene.
+    static bool Visible(Action a) => a switch {
+        Action.Goggles => Equipment.Goggles,
+        Action.Antidote => Equipment.Antidote,
+        Action.Dose => Equipment.AdrenalineDoses > 0,
+        _ => true,
+    };
 
     // Rectangulos en coordenadas de pantalla con origen arriba a la izquierda.
     static Rect ButtonRect(Action action) {
@@ -31,6 +43,10 @@ public sealed class TouchControls : MonoBehaviour {
             Action.Light => new Rect(w - size * 2 - gap * 2, h - size - gap, size, size),
             Action.Crouch => new Rect(w - size - gap, h - size - gap, size, size),
             Action.Run => new Rect(w - size * 3 - gap * 3, h - size - gap, size, size),
+            Action.Jump => new Rect(w - size * 2 - gap * 2, h - size * 2 - gap * 2, size, size),
+            Action.Goggles => new Rect(w - size - gap, h - size * 3 - gap * 3, size, size * .8f),
+            Action.Antidote => new Rect(w - size * 2 - gap * 2, h - size * 3 - gap * 3, size, size * .8f),
+            Action.Dose => new Rect(w - size * 3 - gap * 3, h - size * 2 - gap * 2, size, size),
             _ => new Rect(w - size * .8f - gap, gap, size * .8f, size * .6f),
         };
     }
@@ -40,11 +56,15 @@ public sealed class TouchControls : MonoBehaviour {
         Action.Light => "LUZ",
         Action.Crouch => CrouchHeld ? "DE PIE" : "AGACHAR",
         Action.Run => RunHeld ? "CAMINAR" : "CORRER",
+        Action.Jump => "SALTAR",
+        Action.Goggles => "GAFAS",
+        Action.Antidote => "ANTIDOTO",
+        Action.Dose => "ADRENALINA",
         _ => "II",
     };
 
     void Update() {
-        InteractPressed = LightPressed = PausePressed = false;
+        InteractPressed = LightPressed = PausePressed = JumpPressed = GogglesPressed = AntidotePressed = DosePressed = false;
         Look = Vector2.zero;
         var screen = Touchscreen.current;
         if (!Enabled || screen == null) { Move = Vector2.zero; return; }
@@ -77,7 +97,7 @@ public sealed class TouchControls : MonoBehaviour {
     }
 
     static Action? HitButton(Vector2 gui) {
-        foreach (var a in Actions) if (ButtonRect(a).Contains(gui)) return a;
+        foreach (var a in Actions) if (Visible(a) && ButtonRect(a).Contains(gui)) return a;
         return null;
     }
 
@@ -87,6 +107,10 @@ public sealed class TouchControls : MonoBehaviour {
             case Action.Light: LightPressed = true; break;
             case Action.Crouch: CrouchHeld = !CrouchHeld; break;
             case Action.Run: RunHeld = !RunHeld; break;
+            case Action.Jump: JumpPressed = true; break;
+            case Action.Goggles: GogglesPressed = true; break;
+            case Action.Antidote: AntidotePressed = true; break;
+            case Action.Dose: DosePressed = true; break;
             default: PausePressed = true; break;
         }
     }
@@ -95,6 +119,7 @@ public sealed class TouchControls : MonoBehaviour {
         if (!Enabled) return;
         var style = Ui.Label(Mathf.RoundToInt(18 * Ui.Scale), TextAnchor.MiddleCenter, FontStyle.Bold);
         foreach (var a in Actions) {
+            if (!Visible(a)) continue;
             Ui.Fill(ButtonRect(a), new Color(0, 0, 0, .35f));
             GUI.Label(ButtonRect(a), Label(a), style);
         }

@@ -9,7 +9,8 @@ public sealed class SaveGame {
     public int chapter;
     public string scene, spawn;
     public int step;
-    public bool flashlight = true, gps = true, file;
+    public bool flashlight = true, gps = true, file, goggles, key, antidote;
+    public int doses;
 
     public static bool Exists => PlayerPrefs.HasKey(Key);
 

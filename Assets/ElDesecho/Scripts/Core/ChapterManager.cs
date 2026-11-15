@@ -20,7 +20,7 @@ public sealed class ChapterManager : MonoBehaviour {
     public int TimesCaught { get; private set; }
 
     string title, subtitle;
-    float titleUntil;
+    float titleUntil, fadeTarget;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     static void Boot() {
@@ -31,7 +31,10 @@ public sealed class ChapterManager : MonoBehaviour {
         if (TestMode) go.AddComponent<AutoPlaytest>();
     }
 
-    void Start() => StartCoroutine(FadeTo(0));
+    void Start() => fadeTarget = 0;
+
+    // Un solo fundido a la vez: Update mueve Fade hacia el objetivo actual.
+    void Update() => Fade = Mathf.MoveTowards(Fade, fadeTarget, Time.unscaledDeltaTime / FadeTime);
 
     public void NewGame() {
         SaveGame.Clear();
@@ -85,14 +88,14 @@ public sealed class ChapterManager : MonoBehaviour {
     }
 
     // El Deshecho atrapo al jugador: vuelve al ultimo punto de control con el equipo que tenia alli.
-    public void Caught() {
+    public void Caught(string reason = "El Deshecho te encontro") {
         if (Busy) return;
         TimesCaught++;
         var save = SaveGame.Load();
         string scene = save != null && !string.IsNullOrEmpty(save.scene) ? save.scene : SceneManager.GetActiveScene().name;
         if (save != null) Equipment.Restore(save);
         FadeColor = new Color(.25f, 0, 0);
-        Go(scene, save?.spawn, save?.step ?? 0, "El Deshecho te encontro", "Vuelves al ultimo punto seguro");
+        Go(scene, save?.spawn, save?.step ?? 0, reason, "Vuelves al ultimo punto seguro");
     }
 
     public void ToMenu() => Go(Chapters.MenuScene, null, 0, null, null);
@@ -122,10 +125,8 @@ public sealed class ChapterManager : MonoBehaviour {
     }
 
     IEnumerator FadeTo(float target) {
-        while (!Mathf.Approximately(Fade, target)) {
-            Fade = Mathf.MoveTowards(Fade, target, Time.unscaledDeltaTime / FadeTime);
-            yield return null;
-        }
+        fadeTarget = target;
+        while (!Mathf.Approximately(Fade, target)) yield return null;
     }
 
     void OnGUI() {
