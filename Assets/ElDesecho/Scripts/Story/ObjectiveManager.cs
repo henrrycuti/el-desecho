@@ -9,10 +9,16 @@ namespace ElDesecho {
 public sealed class ObjectiveStep {
     [Tooltip("Texto del objetivo que se ve arriba en pantalla.")]
     [TextArea] public string objective;
-    [Tooltip("Evento que completa el paso (de un StoryTrigger o un Interactable).")]
+    [Tooltip("Evento que completa el paso. Vacio = se completa al terminar sus frases.")]
     public string completeOn;
+    [Tooltip("Cuantas veces debe ocurrir el evento (por ejemplo, 4 fotos).")]
+    public int count = 1;
     [Tooltip("Frases que aparecen como subtitulos al empezar el paso.")]
     [TextArea] public string[] lines = new string[0];
+    [Tooltip("Dialogo importante: el juego espera a que el jugador pulse continuar en cada frase.")]
+    public bool dialogue;
+    [Tooltip("Evento que se emite al empezar el paso (por ejemplo, para lanzar una secuencia).")]
+    public string raiseOnStart;
     [Tooltip("Lugar que marca el indicador en pantalla. Vacio = sin marcador.")]
     public Transform marker;
     [Tooltip("Ruta del GPS: el indicador apunta al siguiente punto hasta llegar al ultimo.")]
@@ -30,22 +36,29 @@ public sealed class ObjectiveStep {
     public string checkpointSpawn;
 }
 
-// Objetivos de la escena: muestra el objetivo actual, los subtitulos y el GPS, y avanza con los eventos de historia.
-// Tambien coloca al jugador en el punto de aparicion indicado por el gestor de capitulos.
+// Objetivos de la escena: muestra el objetivo actual, los subtitulos, los dialogos y el GPS,
+// y avanza con los eventos de historia. Tambien coloca al jugador en su punto de aparicion.
 public sealed class ObjectiveManager : MonoBehaviour {
     public List<ObjectiveStep> steps = new();
     public float gpsArrival = 3.5f;
 
     public static ObjectiveManager Instance { get; private set; }
     public int Index { get; private set; }
+    public int Progress { get; private set; }
     public ObjectiveStep Current => Index < steps.Count ? steps[Index] : null;
     public int GpsIndex { get; private set; }
     public Transform GpsTarget => Current != null && GpsIndex < Current.gpsRoute.Length ? Current.gpsRoute[GpsIndex] : null;
-    public string Subtitle => subtitles.Count > 0 ? subtitles[0] : null;
+    public string Subtitle => queue.Count > 0 ? queue[0].text : null;
+    public bool InDialogue => queue.Count > 0 && queue[0].blocking;
+    public bool DialoguePending => queue.Exists(l => l.blocking);
     public float ObjectiveShownAt { get; private set; }
+    public IReadOnlyList<string> History => history;
 
-    readonly List<string> subtitles = new();
-    float subtitleUntil;
+    struct Line { public string text; public bool blocking; }
+    readonly List<Line> queue = new();
+    readonly List<string> history = new();
+    float lineUntil;
+    bool waitingForLines;
 
     void Awake() => Instance = this;
     void OnEnable() => StoryEvents.Raised += OnEvent;
@@ -60,28 +73,56 @@ public sealed class ObjectiveManager : MonoBehaviour {
         foreach (var p in FindObjectsByType<SpawnPoint>(FindObjectsSortMode.InstanceID))
             if (chosen == null || p.id == spawn) chosen = p;
         if (player != null && chosen != null) player.PlaceAt(chosen.transform);
-        Begin(manager != null ? Mathf.Clamp(manager.PendingStep, 0, Mathf.Max(0, steps.Count - 1)) : 0);
+        int first = manager != null ? Mathf.Clamp(manager.PendingStep, 0, Mathf.Max(0, steps.Count - 1)) : 0;
+        StoryEvents.Raise("reanudar:" + first);
+        Begin(first);
     }
 
-    public bool Waiting(string id) => Current != null && !string.IsNullOrEmpty(id) && Current.completeOn == id;
+    public bool Waiting(string id) => Current != null && !string.IsNullOrEmpty(id) && Current.completeOn == id && !InDialogue;
+
+    // Anade una frase a la cola de subtitulos. "blocking" = dialogo que espera a que el jugador continue.
+    public void Say(string text, bool blocking = false) {
+        if (string.IsNullOrEmpty(text)) return;
+        if (queue.Count == 0) lineUntil = Time.time + LineTime(text);
+        queue.Add(new Line { text = text, blocking = blocking });
+        history.Add(text);
+        if (history.Count > 14) history.RemoveAt(0);
+    }
+
+    // Continuar: pasa a la siguiente frase (E, clic o boton USAR).
+    public void Advance() {
+        if (queue.Count == 0) return;
+        queue.RemoveAt(0);
+        if (queue.Count > 0) lineUntil = Time.time + LineTime(queue[0].text);
+    }
+
+    static float LineTime(string text) => Mathf.Max(3.5f, text.Length * .07f);
 
     void Begin(int index) {
         Index = index;
+        Progress = 0;
         GpsIndex = 0;
         var step = Current;
         if (step == null) return;
         ObjectiveShownAt = Time.time;
-        subtitles.Clear();
-        subtitles.AddRange(step.lines);
-        subtitleUntil = Time.time + SubtitleTime(Subtitle);
+        // Un dialogo importante empieza ya: las frases sueltas que quedaban pendientes se descartan.
+        if (step.dialogue) queue.RemoveAll(l => !l.blocking);
+        foreach (var line in step.lines) Say(line, step.dialogue);
+        if (step.dialogue && queue.Count > 0) lineUntil = Time.time + LineTime(queue[0].text);
+        waitingForLines = string.IsNullOrEmpty(step.completeOn);
         if (step.checkpoint && ChapterManager.Instance != null)
             ChapterManager.Instance.Checkpoint(SceneManager.GetActiveScene().name, step.checkpointSpawn, index);
+        if (!string.IsNullOrEmpty(step.raiseOnStart)) StoryEvents.Raise(step.raiseOnStart);
     }
 
-    static float SubtitleTime(string text) => text == null ? 0 : Mathf.Clamp(text.Length * .06f, 2.5f, 7f);
-
     void OnEvent(string id) {
-        if (!Waiting(id)) return;
+        if (Current == null || string.IsNullOrEmpty(id) || Current.completeOn != id) return;
+        Progress++;
+        if (Progress < Mathf.Max(1, Current.count)) return;
+        Complete();
+    }
+
+    void Complete() {
         var done = Current;
         var manager = ChapterManager.Instance;
         if (!string.IsNullOrEmpty(done.completeChapterTitle) && manager != null) {
@@ -98,9 +139,10 @@ public sealed class ObjectiveManager : MonoBehaviour {
     }
 
     void Update() {
-        if (subtitles.Count > 0 && Time.time >= subtitleUntil) {
-            subtitles.RemoveAt(0);
-            subtitleUntil = Time.time + SubtitleTime(Subtitle);
+        if (queue.Count > 0 && !queue[0].blocking && Time.time >= lineUntil) Advance();
+        if (waitingForLines && queue.Count == 0) {
+            waitingForLines = false;
+            Complete();
         }
         var player = FirstPersonController.Current;
         var target = GpsTarget;

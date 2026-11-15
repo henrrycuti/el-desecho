@@ -10,11 +10,14 @@ public sealed class ChapterManager : MonoBehaviour {
     const float FadeTime = .7f, TitleTime = 3.2f;
 
     public static ChapterManager Instance { get; private set; }
+    public static bool TestMode { get; private set; }
     public float Fade { get; private set; } = 1;
+    public Color FadeColor { get; private set; } = Color.black;
     public bool Busy { get; private set; }
     public int Chapter { get; private set; }
     public string PendingSpawn { get; private set; }
     public int PendingStep { get; private set; }
+    public int TimesCaught { get; private set; }
 
     string title, subtitle;
     float titleUntil;
@@ -24,13 +27,15 @@ public sealed class ChapterManager : MonoBehaviour {
         var go = new GameObject("Gestor de capitulos");
         DontDestroyOnLoad(go);
         Instance = go.AddComponent<ChapterManager>();
-        if (Array.IndexOf(Environment.GetCommandLineArgs(), "-elDesechoTest") >= 0) go.AddComponent<AutoPlaytest>();
+        TestMode = Array.IndexOf(Environment.GetCommandLineArgs(), "-elDesechoTest") >= 0;
+        if (TestMode) go.AddComponent<AutoPlaytest>();
     }
 
     void Start() => StartCoroutine(FadeTo(0));
 
     public void NewGame() {
         SaveGame.Clear();
+        Equipment.Reset();
         Chapter = 0;
         var first = Chapters.All[0];
         Go(first.firstScene, first.spawn, 0, first.title, "");
@@ -40,6 +45,7 @@ public sealed class ChapterManager : MonoBehaviour {
         var save = SaveGame.Load();
         if (save == null) { NewGame(); return; }
         Chapter = save.chapter;
+        Equipment.Restore(save);
         var chapter = Chapters.All[Mathf.Clamp(save.chapter, 0, Chapters.All.Length - 1)];
         if (string.IsNullOrEmpty(save.scene)) {
             if (!chapter.Built) return;
@@ -54,9 +60,11 @@ public sealed class ChapterManager : MonoBehaviour {
         return save == null ? null : Chapters.All[Mathf.Clamp(save.chapter, 0, Chapters.All.Length - 1)].title;
     }
 
-    // Guarda un punto de control dentro del capitulo actual.
+    // Guarda un punto de control dentro del capitulo actual, con el equipo que se lleva en ese momento.
     public void Checkpoint(string scene, string spawn, int step) {
-        new SaveGame { chapter = Chapter, scene = scene, spawn = spawn, step = step }.Store();
+        var save = new SaveGame { chapter = Chapter, scene = scene, spawn = spawn, step = step };
+        Equipment.Store(save);
+        save.Store();
     }
 
     // Pasa a otra zona del mismo capitulo, con fundido y, si se indica, un titulo.
@@ -68,10 +76,23 @@ public sealed class ChapterManager : MonoBehaviour {
     // Termina un capitulo: guarda el siguiente y lo abre, o vuelve al menu si aun no esta construido.
     public void CompleteChapter(string closingTitle) {
         Chapter = Mathf.Min(Chapter + 1, Chapters.All.Length - 1);
-        new SaveGame { chapter = Chapter }.Store();
         var next = Chapters.All[Chapter];
-        if (next.Built) Go(next.firstScene, next.spawn, 0, next.title, "");
+        var save = new SaveGame { chapter = Chapter, scene = next.firstScene, spawn = next.spawn, step = 0 };
+        Equipment.Store(save);
+        save.Store();
+        if (next.Built) Go(next.firstScene, next.spawn, 0, next.title, closingTitle);
         else Go(Chapters.MenuScene, null, 0, closingTitle, next.title + " - proximamente");
+    }
+
+    // El Deshecho atrapo al jugador: vuelve al ultimo punto de control con el equipo que tenia alli.
+    public void Caught() {
+        if (Busy) return;
+        TimesCaught++;
+        var save = SaveGame.Load();
+        string scene = save != null && !string.IsNullOrEmpty(save.scene) ? save.scene : SceneManager.GetActiveScene().name;
+        if (save != null) Equipment.Restore(save);
+        FadeColor = new Color(.25f, 0, 0);
+        Go(scene, save?.spawn, save?.step ?? 0, "El Deshecho te encontro", "Vuelves al ultimo punto seguro");
     }
 
     public void ToMenu() => Go(Chapters.MenuScene, null, 0, null, null);
@@ -85,6 +106,7 @@ public sealed class ChapterManager : MonoBehaviour {
         Busy = true;
         yield return FadeTo(1);
         Time.timeScale = 1;
+        AudioListener.pause = false;
         PendingSpawn = spawn;
         PendingStep = step;
         if (!string.IsNullOrEmpty(titleCard)) {
@@ -94,6 +116,7 @@ public sealed class ChapterManager : MonoBehaviour {
         }
         yield return SceneManager.LoadSceneAsync(scene);
         while (Time.unscaledTime < titleUntil) yield return null;
+        FadeColor = Color.black;
         yield return FadeTo(0);
         Busy = false;
     }
@@ -110,7 +133,7 @@ public sealed class ChapterManager : MonoBehaviour {
         bool showTitle = Time.unscaledTime < titleUntil;
         if (Fade <= 0 && !showTitle) return;
         var old = GUI.color;
-        GUI.color = new Color(0, 0, 0, showTitle ? 1 : Fade);
+        GUI.color = new Color(FadeColor.r, FadeColor.g, FadeColor.b, showTitle ? 1 : Fade);
         GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
         GUI.color = old;
         if (!showTitle) return;

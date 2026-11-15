@@ -10,6 +10,12 @@ public sealed class Interactable : MonoBehaviour {
     public bool onlyWhenObjective = true;
     public bool singleUse = true;
     public bool hideOnUse;
+    [Tooltip("Objeto que recoge el jugador: linterna, gps, adrenalina, archivo.")]
+    public string give;
+    [Tooltip("Frase que aparece al usarlo.")]
+    public string sayOnUse;
+    [Tooltip("Hace la foto con un destello de camara.")]
+    public bool photo;
 
     bool used;
 
@@ -25,6 +31,9 @@ public sealed class Interactable : MonoBehaviour {
     public void Use() {
         if (!Available) return;
         used = true;
+        if (!string.IsNullOrEmpty(give)) Equipment.Give(give);
+        if (photo) Hud.Flash();
+        if (!string.IsNullOrEmpty(sayOnUse)) ObjectiveManager.Instance?.Say(sayOnUse);
         StoryEvents.Raise(eventId);
         if (hideOnUse) gameObject.SetActive(false);
     }

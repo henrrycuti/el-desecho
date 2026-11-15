@@ -13,7 +13,7 @@ using Object = UnityEngine.Object;
 // Construye el prologo de El Desecho: materiales, kit modular de alcantarilla, escenas y ejecutable.
 // Menu El Desecho > Construir prologo (o -executeMethod ElDesechoBuilder.BuildPrologue).
 // Las escenas se pueden editar despues a mano en Unity; volver a construir las reemplaza.
-public static class ElDesechoBuilder {
+public static partial class ElDesechoBuilder {
     const string Root = "Assets/ElDesecho";
     const string Scenes = Root + "/Scenes";
     const string Mats = Root + "/Materials";
@@ -42,11 +42,14 @@ public static class ElDesechoBuilder {
     public static void BuildPrologue() {
         ConfigureProject();
         MakeMaterials();
+        MakeChapterMaterials();
         MakeKitPrefabs();
         BuildMenu();
         BuildStreet();
         BuildSewer();
-        EditorBuildSettings.scenes = new[] { "Menu", "P0_Calle", "P1_Alcantarilla" }
+        BuildLab();
+        BuildThreePaths();
+        EditorBuildSettings.scenes = new[] { "Menu", "P0_Calle", "P1_Alcantarilla", "C1_Laboratorio", "C2_TresCaminos" }
             .Select(n => new EditorBuildSettingsScene($"{Scenes}/{n}.unity", true)).ToArray();
         AssetDatabase.SaveAssets();
         Debug.Log("ELDESECHO_PROLOGO_CONSTRUIDO");
@@ -121,6 +124,20 @@ public static class ElDesechoBuilder {
         EditorUtility.SetDirty(rain);
     }
 
+    static Material TransparentLit(string name, Color color, float smooth) {
+        var m = Lit(name, color, smooth);
+        m.SetFloat("_Surface", 1);
+        m.SetFloat("_Blend", 0);
+        m.SetOverrideTag("RenderType", "Transparent");
+        m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        m.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+        m.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+        m.SetInt("_ZWrite", 0);
+        m.renderQueue = (int)RenderQueue.Transparent;
+        EditorUtility.SetDirty(m);
+        return m;
+    }
+
     static Material Lit(string name, Color color, float smooth, float metal = 0) {
         var m = Save(name, new Material(Shader.Find("Universal Render Pipeline/Lit")));
         m.SetColor("_BaseColor", color);
@@ -130,12 +147,13 @@ public static class ElDesechoBuilder {
         return m;
     }
 
-    static void Emissive(string name, Color color, float strength) {
+    static Material Emissive(string name, Color color, float strength) {
         var m = Lit(name, color * .3f, .5f);
         m.EnableKeyword("_EMISSION");
         m.SetColor("_EmissionColor", color * strength);
         m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
         EditorUtility.SetDirty(m);
+        return m;
     }
 
     static Material Save(string name, Material fresh) {

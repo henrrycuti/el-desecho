@@ -1,18 +1,19 @@
 using UnityEngine;
 
 namespace ElDesecho {
-// Adaptador minimo de El Deshecho: lo deja quieto en reposo, respirando y con la boca entreabierta.
-// No tiene inteligencia todavia; la persecucion se anadira en un capitulo posterior.
+// Respiracion y boca de El Deshecho. Si no tiene cerebro (CreatureBrain), ademas lo deja quieto en reposo.
 public sealed class CreatureIdle : MonoBehaviour {
     public float breathSpeed = 2.5f;
     Animator animator;
     SkinnedMeshRenderer skin;
+    CreatureBrain brain;
     int breath = -1, mouth = -1;
     float seed;
 
     void Awake() {
         animator = GetComponentInChildren<Animator>();
         skin = GetComponentInChildren<SkinnedMeshRenderer>();
+        brain = GetComponent<CreatureBrain>();
         seed = Random.value * 10;
         if (skin == null) return;
         var mesh = skin.sharedMesh;
@@ -24,11 +25,12 @@ public sealed class CreatureIdle : MonoBehaviour {
     }
 
     void Update() {
-        if (animator != null && animator.runtimeAnimatorController != null) animator.SetFloat("Speed", 0);
+        if (brain == null && animator != null && animator.runtimeAnimatorController != null) animator.SetFloat("Speed", 0);
         if (skin == null) return;
-        float t = Time.time * breathSpeed + seed;
+        bool hunting = brain != null && brain.State == CreatureState.Chase;
+        float t = Time.time * (hunting ? breathSpeed * 2.5f : breathSpeed) + seed;
         if (breath >= 0) skin.SetBlendShapeWeight(breath, (Mathf.Sin(t) + 1) * 40);
-        if (mouth >= 0) skin.SetBlendShapeWeight(mouth, 12 + Mathf.Sin(t * .7f) * 6);
+        if (mouth >= 0) skin.SetBlendShapeWeight(mouth, hunting ? 75 + Mathf.Sin(t * 2) * 10 : 12 + Mathf.Sin(t * .7f) * 6);
     }
 }
 }

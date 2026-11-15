@@ -14,4 +14,10 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/ElDesecho/Scenes/P1_Alcantarilla.unity
     guid: 97a70c49a97ebb543a599d22874254b8
+  - enabled: 1
+    path: Assets/ElDesecho/Scenes/C1_Laboratorio.unity
+    guid: eb682fec35d72a34cbcd9a78bd0e91d5
+  - enabled: 1
+    path: Assets/ElDesecho/Scenes/C2_TresCaminos.unity
+    guid: 191003ef4ce0ccf42835d46cdfda3309
   m_configObjects: {}

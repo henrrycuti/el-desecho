@@ -2,13 +2,14 @@ using System;
 using UnityEngine;
 
 namespace ElDesecho {
-// Partida guardada: capitulo alcanzado y ultimo punto de control (escena, punto de aparicion y objetivo).
+// Partida guardada: capitulo alcanzado, ultimo punto de control (escena, punto de aparicion y objetivo) y equipo.
 [Serializable]
 public sealed class SaveGame {
     const string Key = "eldesecho.partida";
     public int chapter;
     public string scene, spawn;
     public int step;
+    public bool flashlight = true, gps = true, file;
 
     public static bool Exists => PlayerPrefs.HasKey(Key);
 
