@@ -4,5 +4,14 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/ElDesecho/Scenes/Menu.unity
+    guid: 3ff697cb2ca55054ea953e90cdcfcca8
+  - enabled: 1
+    path: Assets/ElDesecho/Scenes/P0_Calle.unity
+    guid: 2c09eb76c1f9a6547a2fad2339ef31ad
+  - enabled: 1
+    path: Assets/ElDesecho/Scenes/P1_Alcantarilla.unity
+    guid: 97a70c49a97ebb543a599d22874254b8
   m_configObjects: {}
