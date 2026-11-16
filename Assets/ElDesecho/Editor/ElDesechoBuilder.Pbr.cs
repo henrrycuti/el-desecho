@@ -212,6 +212,32 @@ public static partial class ElDesechoBuilder {
         return g;
     }
 
+    // Monton de piedras que se recoge (3 piedras) para lanzarlas y distraer a El Deshecho.
+    static void StonePile(Transform parent, Vector3 position) {
+        var pile = new GameObject("Piedras");
+        pile.transform.SetParent(parent, false);
+        pile.transform.localPosition = position + Vector3.up * .15f;
+        for (int i = 0; i < 4; i++) {
+            var s = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            s.name = "Piedra";
+            s.transform.SetParent(pile.transform, false);
+            s.transform.localPosition = new Vector3((i % 2 - .5f) * .16f, (i / 2) * .07f, (i / 2 - .5f) * .12f);
+            s.transform.localScale = new Vector3(.15f, .11f, .13f);
+            s.transform.localRotation = Quaternion.Euler(i * 31, i * 67, i * 13);
+            Finish(s, "Concreto", false);
+        }
+        var box = pile.AddComponent<BoxCollider>();
+        box.size = new Vector3(.45f, .3f, .4f);
+        box.center = Vector3.up * .05f;
+        var item = Usable(pile, "Recoger piedras", "piedras");
+        item.give = "piedra,piedra,piedra";
+        item.onlyWhenObjective = false;
+        item.hideOnUse = true;
+        item.sayOnUse = TouchControlsHint;
+    }
+
+    const string TouchControlsHint = "Piedras. Lanzalas lejos (mantener T y soltar, o boton PIEDRA) para que El Deshecho vaya hacia el ruido.";
+
     // Utileria de alcantarilla en una celda (solo pegada a muros, nunca en el centro del paso).
     static void SewerProps(Transform cell, int open, float height) {
         int hash = Mathf.Abs((int)(cell.localPosition.x * 11 + cell.localPosition.z * 17)) % 10;
@@ -222,6 +248,7 @@ public static partial class ElDesechoBuilder {
             float yaw = Quaternion.LookRotation(-dir).eulerAngles.y;
             float inner = Cell / 2 - Wall;
             bool straight = open == (1 | 4) || open == (2 | 8);
+            if (hash == 5 || (hash == 8 && straight)) StonePile(cell, dir * (inner - .3f) - across * 1.2f);
             if (hash == 1 && straight) {
                 Prop("Barril", cell, dir * (inner - .35f) + across * 1.4f, hash * 37, true);
                 Prop("Barril", cell, dir * (inner - .35f) + across * .75f, hash * 53, true);

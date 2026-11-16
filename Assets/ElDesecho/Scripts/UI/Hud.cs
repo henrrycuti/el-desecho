@@ -121,6 +121,7 @@ public sealed class Hud : MonoBehaviour {
         }
         if (Equipment.Antidote) GUI.Label(new Rect(340 * s, y - 20 * s, 220 * s, 22 * s), (TouchControls.Enabled ? "" : "Q ") + (tools.AntidoteReadyIn > 0 ? "ANTIDOTO " + Mathf.CeilToInt(tools.AntidoteReadyIn) + " s" : "ANTIDOTO listo"), style);
         if (Equipment.AdrenalineDoses > 0) GUI.Label(new Rect(500 * s, y - 20 * s, 220 * s, 22 * s), (TouchControls.Enabled ? "" : "R ") + "ADRENALINA x" + Equipment.AdrenalineDoses, style);
+        if (Equipment.Stones > 0) GUI.Label(new Rect(660 * s, y - 20 * s, 240 * s, 22 * s), (TouchControls.Enabled ? "" : "T ") + "PIEDRAS x" + Equipment.Stones, style);
     }
 
     // Vision de las gafas: tinte verde y, a traves de las paredes, criaturas (rojo), objetos (amarillo) y pasillos bloqueados (naranja).

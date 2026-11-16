@@ -10,7 +10,7 @@ public sealed class SaveGame {
     public string scene, spawn;
     public int step;
     public bool flashlight = true, gps = true, file, goggles, key, antidote;
-    public int doses;
+    public int doses, stones;
 
     public static bool Exists => PlayerPrefs.HasKey(Key);
 

@@ -88,13 +88,13 @@ public sealed class ChapterManager : MonoBehaviour {
     }
 
     // El Deshecho atrapo al jugador: vuelve al ultimo punto de control con el equipo que tenia alli.
-    public void Caught(string reason = "El Deshecho te encontro") {
+    public void Caught(string reason = "El Deshecho te encontro", bool black = false) {
         if (Busy) return;
         TimesCaught++;
         var save = SaveGame.Load();
         string scene = save != null && !string.IsNullOrEmpty(save.scene) ? save.scene : SceneManager.GetActiveScene().name;
         if (save != null) Equipment.Restore(save);
-        FadeColor = new Color(.25f, 0, 0);
+        FadeColor = black ? Color.black : new Color(.25f, 0, 0);
         Go(scene, save?.spawn, save?.step ?? 0, reason, "Vuelves al ultimo punto seguro");
     }
 

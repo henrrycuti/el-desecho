@@ -19,19 +19,21 @@ public sealed class TouchControls : MonoBehaviour {
     public bool GogglesPressed { get; private set; }
     public bool AntidotePressed { get; private set; }
     public bool DosePressed { get; private set; }
+    public bool StonePressed { get; private set; }
 
     const float StickRadius = 70;
     int moveId = -1, lookId = -1;
     Vector2 moveOrigin, movePoint;
 
-    enum Action { Interact, Light, Crouch, Run, Pause, Jump, Goggles, Antidote, Dose }
-    static readonly Action[] Actions = { Action.Interact, Action.Light, Action.Crouch, Action.Run, Action.Pause, Action.Jump, Action.Goggles, Action.Antidote, Action.Dose };
+    enum Action { Interact, Light, Crouch, Run, Pause, Jump, Goggles, Antidote, Dose, Stone }
+    static readonly Action[] Actions = { Action.Interact, Action.Light, Action.Crouch, Action.Run, Action.Pause, Action.Jump, Action.Goggles, Action.Antidote, Action.Dose, Action.Stone };
 
     // Los botones de herramientas solo aparecen cuando el jugador ya las tiene.
     static bool Visible(Action a) => a switch {
         Action.Goggles => Equipment.Goggles,
         Action.Antidote => Equipment.Antidote,
         Action.Dose => Equipment.AdrenalineDoses > 0,
+        Action.Stone => Equipment.Stones > 0,
         _ => true,
     };
 
@@ -47,6 +49,7 @@ public sealed class TouchControls : MonoBehaviour {
             Action.Goggles => new Rect(w - size - gap, h - size * 3 - gap * 3, size, size * .8f),
             Action.Antidote => new Rect(w - size * 2 - gap * 2, h - size * 3 - gap * 3, size, size * .8f),
             Action.Dose => new Rect(w - size * 3 - gap * 3, h - size * 2 - gap * 2, size, size),
+            Action.Stone => new Rect(w - size * 3 - gap * 3, h - size * 3 - gap * 3, size, size * .8f),
             _ => new Rect(w - size * .8f - gap, gap, size * .8f, size * .6f),
         };
     }
@@ -60,11 +63,12 @@ public sealed class TouchControls : MonoBehaviour {
         Action.Goggles => "GAFAS",
         Action.Antidote => "ANTIDOTO",
         Action.Dose => "ADRENALINA",
+        Action.Stone => "PIEDRA x" + Equipment.Stones,
         _ => "II",
     };
 
     void Update() {
-        InteractPressed = LightPressed = PausePressed = JumpPressed = GogglesPressed = AntidotePressed = DosePressed = false;
+        InteractPressed = LightPressed = PausePressed = JumpPressed = GogglesPressed = AntidotePressed = DosePressed = StonePressed = false;
         Look = Vector2.zero;
         var screen = Touchscreen.current;
         if (!Enabled || screen == null) { Move = Vector2.zero; return; }
@@ -111,6 +115,7 @@ public sealed class TouchControls : MonoBehaviour {
             case Action.Goggles: GogglesPressed = true; break;
             case Action.Antidote: AntidotePressed = true; break;
             case Action.Dose: DosePressed = true; break;
+            case Action.Stone: StonePressed = true; break;
             default: PausePressed = true; break;
         }
     }

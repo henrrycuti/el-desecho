@@ -113,6 +113,13 @@ public sealed class CreatureBrain : MonoBehaviour {
         float distance = Vector3.Distance(Flat(position), Flat(transform.position));
         if (distance > radius) return;
         LastHeardAt = Time.time;
+        // Piedra lanzada: si no esta persiguiendo, se gira de golpe hacia el ruido y va a olfatear alli.
+        if (Noise.Distraction && State != CreatureState.Chase) {
+            // (el cuerpo gira solo al caminar hacia alli; el sobresalto de la cabeza lo da la animacion de alerta)
+            if (animator != null) animator.SetTrigger("Alert");
+            Investigate(position);
+            return;
+        }
         if (distance < chaseHearing && radius >= 5 || State == CreatureState.Chase) StartChase(position);
         else Investigate(position);
     }
@@ -221,10 +228,8 @@ public sealed class CreatureBrain : MonoBehaviour {
         if (grid != null && !grid.Walkable(grid.ToCell(player.transform.position), true)) return;
         var manager = ChapterManager.Instance;
         if (manager == null || manager.Busy) return;
-        PlayAttack();
-        player.InputLocked = true;
-        player.Shake(1);
-        manager.Caught();
+        // Lo agarra, lo levanta, el jugador ve la boca y se lo come (ver DeathSequence).
+        DeathSequence.Play(this, player);
     }
 
     static Vector3 Flat(Vector3 v) => new(v.x, 0, v.z);

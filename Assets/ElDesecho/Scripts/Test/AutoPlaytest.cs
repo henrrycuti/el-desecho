@@ -120,6 +120,30 @@ public sealed class AutoPlaytest : MonoBehaviour {
         yield return Use(found);
     }
 
+    // Piedra de distraccion: se gasta al lanzarla y la criatura activa va a investigar el ruido sin perseguir.
+    IEnumerator StoneTest() {
+        var tools = PlayerTools.Current;
+        Equipment.Stones = 2;
+        if (!tools.ThrowStone() || Equipment.Stones != 1) { Fail("Lanzar una piedra no la gasta"); yield break; }
+        CreatureBrain listener = null;
+        foreach (var c in FindObjectsByType<CreatureBrain>(FindObjectsSortMode.None))
+            if (c.State is CreatureState.Patrol or CreatureState.Investigate) { listener = c; break; }
+        if (listener == null) { Debug.Log("ELDESECHO_PRUEBA: piedra lanzada (no habia criatura activa para oirla)"); Equipment.Stones = 0; yield break; }
+        float before = listener.LastHeardAt;
+        var spot = listener.transform.position + listener.transform.right * 4 + Vector3.up * 1.2f;
+        var stone = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        stone.transform.position = spot;
+        stone.transform.localScale = Vector3.one * .1f;
+        stone.AddComponent<Rigidbody>();
+        stone.AddComponent<ThrownStone>();
+        float until = Time.time + 4;
+        while (listener.LastHeardAt <= before && Time.time < until) yield return null;
+        if (listener.LastHeardAt <= before) { Fail("La criatura no oyo la piedra"); yield break; }
+        if (listener.State == CreatureState.Chase) { Fail("La piedra hizo que la criatura persiguiera en vez de investigar"); yield break; }
+        Debug.Log("ELDESECHO_PRUEBA: la criatura oyo la piedra y fue a investigar (" + listener.State + ")");
+        Equipment.Stones = 0;
+    }
+
     IEnumerator SkipDialogue() {
         var objectives = ObjectiveManager.Instance;
         float until = Time.time + 30;
@@ -229,7 +253,18 @@ public sealed class AutoPlaytest : MonoBehaviour {
         yield return SkipDialogue();
         int stepBefore = ObjectiveManager.Instance.Index;
         int caughtBefore = manager.TimesCaught;
-        manager.Caught();
+        // Atrapado de verdad: la criatura aparece delante y se juega la secuencia de muerte completa.
+        var hunter = FindFirstObjectByType<CreatureBrain>();
+        var me = FirstPersonController.Current;
+        if (hunter == null) manager.Caught();
+        else {
+            hunter.Teleport(me.transform.position + me.transform.forward * 1.3f);
+            DeathSequence.Play(hunter, me);
+            yield return new WaitForSeconds(1.1f);
+            yield return Shot("09b-atrapado");
+            yield return new WaitForSeconds(.6f);
+            yield return Shot("09c-boca");
+        }
         yield return WaitScene("C2_TresCaminos");
         if (manager.TimesCaught != caughtBefore + 1 || ObjectiveManager.Instance.Index != stepBefore) { Fail("Al ser atrapado no volvio al punto de control del cruce"); yield break; }
         yield return SkipDialogue();
@@ -247,6 +282,7 @@ public sealed class AutoPlaytest : MonoBehaviour {
     IEnumerator Chapter3() {
         yield return WaitScene("C3_Investigacion");
         yield return Shot("12-investigacion");
+        yield return StoneTest();
         var grid = CellGrid.Instance;
         yield return Travel(grid.Center(new Vector2Int(12, 4)));
         yield return WaitStep(1, 5);

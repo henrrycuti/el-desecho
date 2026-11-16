@@ -14,6 +14,16 @@ public static class Noise {
         Heard?.Invoke(position, radius);
     }
 
+    // true mientras se avisa un ruido de distraccion (piedra lanzada): la criatura lo investiga
+    // girando, acercandose y olfateando, pero no empieza una persecucion por el.
+    public static bool Distraction { get; private set; }
+
+    public static void EmitDistraction(Vector3 position, float radius) {
+        Distraction = true;
+        try { Heard?.Invoke(position, radius); }
+        finally { Distraction = false; }
+    }
+
     public static void Fade(float dt) => PlayerLevel = Mathf.MoveTowards(PlayerLevel, 0, dt * .8f);
 }
 }
