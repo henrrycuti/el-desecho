@@ -70,6 +70,18 @@ public static partial class ElDesechoBuilder {
         Debug.Log("ELDESECHO_BUILD_OK");
     }
 
+    // Version para entregar: sin marca "Development Build" ni datos de depuracion, en Builds/Entrega.
+    // (La prueba automatica solo se activa con -elDesechoTest, asi que no molesta al jugador.)
+    public static void BuildRelease() {
+        BuildPrologue();
+        string folder = "Builds/Entrega";
+        if (Directory.Exists(folder)) Directory.Delete(folder, true);
+        Directory.CreateDirectory(folder);
+        var report = BuildPipeline.BuildPlayer(EditorBuildSettings.scenes, folder + "/ElDesecho.exe", BuildTarget.StandaloneWindows64, BuildOptions.None);
+        if (report.summary.result != BuildResult.Succeeded) throw new Exception("Build fallido: " + report.summary.result);
+        Debug.Log("ELDESECHO_ENTREGA_OK");
+    }
+
     static void ConfigureProject() {
         var pipeline = AssetDatabase.LoadAssetAtPath<RenderPipelineAsset>("Assets/Settings/Mobile_RPAsset.asset");
         if (pipeline == null) throw new Exception("Falta Assets/Settings/Mobile_RPAsset.asset");

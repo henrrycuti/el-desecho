@@ -25,3 +25,4 @@
 # Originales pesados (Tripo, Mixamo): se quedan en la PC; al repo va la version optimizada.
 /Importar/
 *.fbm/
+/Entregas/
