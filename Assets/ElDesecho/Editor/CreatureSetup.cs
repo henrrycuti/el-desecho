@@ -17,7 +17,18 @@ public static class CreatureSetup {
     const bool UseTripo = true;
     const string TripoFolder = Folder + "/Tripo";
     const string TripoModel = TripoFolder + "/ElDeshechoTripo.fbx";
-    const float TripoHeight = 2.3f; // altura de pie aproximada en metros (encorvado queda en ~1,9 m)
+    const float TripoHeight = 2.4f; // altura ENCORVADO en metros (de pie seria ~2,9 m); el jugador mide 1,8 m
+
+    static float BakedHeight(GameObject g) {
+        float lo = float.MaxValue, hi = float.MinValue;
+        foreach (var r in g.GetComponentsInChildren<SkinnedMeshRenderer>()) {
+            var m = new Mesh();
+            r.BakeMesh(m, true);
+            foreach (var v in m.vertices) { float y = r.transform.TransformPoint(v).y; lo = Mathf.Min(lo, y); hi = Mathf.Max(hi, y); }
+            Object.DestroyImmediate(m);
+        }
+        return hi - lo;
+    }
 
     [MenuItem("El Desecho/Preparar criatura")]
     public static void Prepare() {
@@ -83,13 +94,13 @@ public static class CreatureSetup {
             r.sharedMaterials = Enumerable.Repeat(skin, r.sharedMesh.subMeshCount).ToArray();
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
         }
-        // Escala: la malla de Tripo mide ~1 m; se lleva a la altura del personaje y se apoya en el suelo.
-        var all = renderers[0].bounds;
-        foreach (var r in renderers) all.Encapsulate(r.bounds);
-        float height = all.size.y;
-        if (height > .01f) model.transform.localScale *= TripoHeight / height;
         var animator = model.GetComponent<Animator>() ?? model.AddComponent<Animator>();
         animator.runtimeAnimatorController = controller;
+        // Escala: se mide la malla deformada en la pose encorvada (Idle) y se lleva a TripoHeight.
+        // (Medir los "bounds" del renderer engana: en reposo y sin animar dan otra altura.)
+        if (clips.TryGetValue("Idle", out var idleClip)) idleClip.SampleAnimation(model, 0);
+        float height = BakedHeight(model);
+        if (height > .01f) model.transform.localScale *= TripoHeight / height;
         animator.applyRootMotion = false;
         animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
         root.AddComponent<CreatureIdle>();
@@ -97,6 +108,33 @@ public static class CreatureSetup {
         PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
         Object.DestroyImmediate(root);
         Debug.Log($"ELDESECHO_CRIATURA_OK (Tripo): {triangles} triangulos, {clips.Count} animaciones, {swapped} estados cambiados, altura original {height:0.00} m");
+    }
+
+    // Diagnostico: altura real del prefab en reposo y con cada animacion aplicada.
+    public static void Measure() {
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+        var g = Object.Instantiate(prefab);
+        var animator = g.GetComponentInChildren<Animator>();
+        float Height() {
+            var rs = g.GetComponentsInChildren<SkinnedMeshRenderer>();
+            var b = new Bounds();
+            bool first = true;
+            foreach (var r in rs) {
+                var m = new Mesh();
+                r.BakeMesh(m, true);
+                foreach (var v in m.vertices) {
+                    var w = r.transform.TransformPoint(v);
+                    if (first) { b = new Bounds(w, Vector3.zero); first = false; } else b.Encapsulate(w);
+                }
+            }
+            return b.size.y;
+        }
+        Debug.Log($"ELDESECHO_MEDIDA reposo: {Height():0.00} m, escala modelo {animator.transform.localScale.x:0.000}");
+        foreach (var clip in animator.runtimeAnimatorController.animationClips.Distinct()) {
+            clip.SampleAnimation(animator.gameObject, clip.length * .3f);
+            Debug.Log($"ELDESECHO_MEDIDA {clip.name}: {Height():0.00} m");
+        }
+        Object.DestroyImmediate(g);
     }
 
     static int Remap(AnimatorStateMachine machine, System.Collections.Generic.Dictionary<string, AnimationClip> clips) {

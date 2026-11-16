@@ -141,7 +141,39 @@ public static partial class ElDesechoBuilder {
 
     // ---------- Modelos de Blender (Tools/Blender/modelos_props.py) ----------
     // Coloca un modelo FBX y le pone los materiales PBR del juego segun el nombre del material.
-    static GameObject Prop(string model, Transform parent, Vector3 position, float yaw, bool solid = true) {
+    // Lampara modelada: la parte "Bombilla" recibe el material emisivo del color pedido.
+    static GameObject Lamp(string model, Transform parent, Vector3 position, string bulb, float yaw = 0) =>
+        Prop(model, parent, position, yaw, false, bulb);
+
+    // Lampara de pared: se gira para que la cupula quede hacia la sala (sea cual sea el eje del FBX).
+    static GameObject WallLamp(Transform parent, Vector3 wallPoint, Vector3 intoRoom, string bulb, Color light, bool flicker) {
+        var g = Lamp("Lampara_Pared", parent, wallPoint, bulb, Quaternion.LookRotation(intoRoom).eulerAngles.y);
+        for (int i = 0; i < 4; i++) {
+            var b = RenderBounds(g);
+            if (Vector3.Dot(b.center - g.transform.position, intoRoom) > .03f) break;
+            g.transform.Rotate(0, 90, 0, Space.World);
+        }
+        var bounds = RenderBounds(g);
+        var center = parent.InverseTransformPoint(bounds.center) + intoRoom * .08f;
+        PointLight("Luz de lampara", parent, center, light, 7, 1.6f, flicker).shadows = LightShadows.None;
+        return g;
+    }
+
+    static Bounds RenderBounds(GameObject g) {
+        var rs = g.GetComponentsInChildren<Renderer>();
+        var b = rs[0].bounds;
+        foreach (var r in rs) b.Encapsulate(r.bounds);
+        return b;
+    }
+
+    // Pone el lado largo del modelo a lo largo de "axis" (para la pantalla de fluorescente).
+    static void AlignLong(GameObject g, Vector3 axis) {
+        var size = RenderBounds(g).size;
+        bool alongX = size.x > size.z;
+        if (alongX != (Mathf.Abs(axis.x) > Mathf.Abs(axis.z))) g.transform.Rotate(0, 90, 0, Space.World);
+    }
+
+    static GameObject Prop(string model, Transform parent, Vector3 position, float yaw, bool solid = true, string bulb = null) {
         string path = $"{Root}/Modelos/{model}.fbx";
         var importer = AssetImporter.GetAtPath(path) as ModelImporter;
         if (importer == null) throw new System.Exception("Falta el modelo " + path);
@@ -162,7 +194,9 @@ public static partial class ElDesechoBuilder {
             var mats = r.sharedMaterials;
             for (int i = 0; i < mats.Length; i++) {
                 string name = mats[i] != null ? mats[i].name.Split('.')[0] : "";
+                if (name == "Bombilla") name = bulb ?? "LuzCalle";
                 if (materials.TryGetValue(name, out var real)) mats[i] = real;
+                else mats[i] = M("Metal");
             }
             r.sharedMaterials = mats;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -194,6 +228,9 @@ public static partial class ElDesechoBuilder {
             } else if (hash == 4 || hash == 7) {
                 // Tuberia con codo y valvula a media altura (por encima de la cabeza no estorba: va a 2,3 m).
                 Prop("Tuberia_Codo", cell, dir * (inner - .25f) + Vector3.up * 2.3f - across * .6f, yaw, false);
+            } else if (hash == 9 || hash == 2) {
+                // Lampara blindada de tunel en la pared, con su propia luz calida (algunas parpadean).
+                WallLamp(cell, dir * inner + Vector3.up * 2.5f + across * .9f, -dir, "LuzCalle", new Color(1, .74f, .45f), hash == 9);
             } else if (hash == 6) {
                 var grate = Prop("Rejilla", cell, dir * (inner - .02f) + Vector3.up * (height - 1.1f), yaw, false);
                 grate.transform.localRotation = Quaternion.LookRotation(Vector3.up, -dir);

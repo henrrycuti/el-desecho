@@ -17,6 +17,11 @@ public sealed class AutoPlaytest : MonoBehaviour {
         folder = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", "Verification"));
         Directory.CreateDirectory(folder);
         SaveGame.Clear();
+        // Si el juego se cierra sin terminar la prueba, deja escrito quien lo pidio.
+        Application.wantsToQuit += () => {
+            Debug.Log("ELDESECHO_PRUEBA_CIERRE en escena " + SceneManager.GetActiveScene().name + (failed ? " (tras fallo)" : "") + "\n" + System.Environment.StackTrace);
+            return true;
+        };
         StartCoroutine(Watchdog());
         yield return Run();
     }

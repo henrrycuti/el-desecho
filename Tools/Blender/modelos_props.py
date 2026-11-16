@@ -81,6 +81,9 @@ def export(name):
     bpy.ops.object.join()
     obj = bpy.context.active_object
     obj.name = name
+    # El origen del modelo es el punto (0,0,0) del diseno (suelo, techo o pared), no el de la primera pieza.
+    bpy.context.scene.cursor.location = (0, 0, 0)
+    bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
     path = os.path.join(OUT, name + ".fbx")
     bpy.ops.export_scene.fbx(filepath=path, use_selection=True, apply_scale_options="FBX_SCALE_ALL",
                              axis_forward="-Z", axis_up="Y", bake_space_transform=True,
@@ -201,6 +204,63 @@ def tanque_contencion():
     export("Tanque_Contencion")
 
 
-for build in (barril, tuberia_codo, rejilla, camilla, estante_frascos, carro_instrumental, tanque_contencion):
+# ---------------- Lamparas ----------------
+# "Bombilla" es la parte que brilla: el builder le pone el material emisivo del color de cada lampara.
+def lampara_jaula():
+    # Lampara colgante industrial: cable desde el techo (origen arriba, en 0), pantalla, bombilla y jaula.
+    reset()
+    cyl("Cable", .012, .6, (0, 0, -.3), "Metal", verts=6)
+    cyl("Florón", .06, .04, (0, 0, -.02), "Oxido", verts=12)
+    cyl("Portalamparas", .035, .1, (0, 0, -.65), "Metal", verts=10)
+    bpy.ops.mesh.primitive_cone_add(vertices=20, radius1=.22, radius2=.05, depth=.14, location=(0, 0, -.74))
+    o = bpy.context.active_object; o.name = "Pantalla"
+    finish(o, "Oxido")
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=8, radius=.065, location=(0, 0, -.8))
+    o = bpy.context.active_object; o.name = "Bombilla"; o.scale = (1, 1, 1.25)
+    finish(o, "Bombilla")
+    for z in (-.82, -.9):
+        torus("Aro de jaula", .1, .006, (0, 0, z), "Metal", seg=16, minor_seg=4)
+    for a in range(6):
+        ang = a * math.pi / 3
+        cube("Varilla", (.008, .008, .2), (math.cos(ang) * .1, math.sin(ang) * .1, -.86), "Metal", bevel=0)
+    export("Lampara_Jaula")
+
+
+def lampara_pared():
+    # Lampara blindada de tunel (bulkhead): placa en la pared (origen en la pared, mira hacia -Y),
+    # carcasa oxidada, cupula de cristal y rejilla.
+    reset()
+    cube("Placa", (.24, .03, .3), (0, -.015, 0), "Oxido", bevel=.008)
+    cyl("Brazo", .025, .14, (0, -.09, 0), "Metal", rot=(math.pi / 2, 0, 0), verts=8)
+    cyl("Carcasa", .11, .08, (0, -.18, 0), "Oxido", rot=(math.pi / 2, 0, 0), verts=18, bevel=.01)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=16, ring_count=8, radius=.095, location=(0, -.22, 0))
+    o = bpy.context.active_object; o.name = "Bombilla"; o.scale = (1, .8, 1)
+    finish(o, "Bombilla")
+    torus("Aro", .1, .01, (0, -.22, 0), "Metal", rot=(math.pi / 2, 0, 0), seg=18, minor_seg=4)
+    for x in (-.05, 0, .05):
+        cube("Rejilla", (.008, .12, .2), (x, -.27, 0), "Metal", bevel=0)
+    cube("Rejilla", (.2, .12, .008), (0, -.27, 0), "Metal", bevel=0)
+    export("Lampara_Pared")
+
+
+def fluorescente_carcasa():
+    # Pantalla de fluorescente del laboratorio: reflector metalico (origen arriba, pegado al techo).
+    # Los tubos los pone el builder aparte (cambian a rojo con la alarma).
+    reset()
+    cube("Techo", (.5, 2.3, .03), (0, 0, -.015), "Mesa", bevel=.005)
+    for x in (-1, 1):
+        cube("Reflector", (.03, 2.3, .14), (x * .25, 0, -.08), "Mesa", rot=(0, x * .35, 0), bevel=0)
+    for y in (-1, 1):
+        cube("Tapa", (.52, .03, .12), (0, y * 1.15, -.07), "Mesa", bevel=0)
+    for x in (-.08, .08):
+        for y in (-1.1, 1.1):
+            cube("Casquillo", (.05, .04, .05), (x, y, -.12), "Metal", bevel=0)
+    for y in (-.6, 0, .6):
+        cube("Rejilla", (.48, .01, .01), (0, y, -.16), "Mesa", bevel=0)
+    export("Fluorescente_Carcasa")
+
+
+for build in (barril, tuberia_codo, rejilla, camilla, estante_frascos, carro_instrumental, tanque_contencion,
+              lampara_jaula, lampara_pared, fluorescente_carcasa):
     build()
 print("MODELOS_OK")

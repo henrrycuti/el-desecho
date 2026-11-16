@@ -712,13 +712,13 @@ public static partial class ElDesechoBuilder {
             walkway.localPosition = chamberCenter + new Vector3(0, 0, Cell * 1.5f - Wall - .8f);
             Walkway(walkway, Cell * 3 - 2 * Wall - 1.6f);
             PointLight("Luz de emergencia de la camara", root, chamberCenter + Vector3.up * (ChamberHeight - .6f), new Color(.45f, 1, .55f), 16, 2.5f, true);
-            Box("Lampara de emergencia", root, chamberCenter + Vector3.up * (ChamberHeight - .35f), new Vector3(.6f, .15f, .3f), "LuzVerde", false);
+            Lamp("Lampara_Jaula", root, chamberCenter + Vector3.up * ChamberHeight, "LuzVerde", 0);
 
             // Luces de emergencia viejas a lo largo de la ruta y alguna fuera de ella.
             for (int i = 2; i < path.Count - 1; i += 3) {
                 var p = path[i];
                 PointLight("Luz de emergencia", root, Pos(p.x, p.y) + Vector3.up * (TunnelHeight - .5f), new Color(.5f, .95f, .6f), 12, 2.4f, true);
-                Box("Lampara de emergencia", root, Pos(p.x, p.y) + Vector3.up * (TunnelHeight - .25f), new Vector3(.4f, .12f, .2f), "LuzVerde", false);
+                Lamp("Lampara_Jaula", root, Pos(p.x, p.y) + Vector3.up * TunnelHeight, "LuzVerde", 0);
             }
             PointLight("Luz lejana", root, Pos(13, 1) + Vector3.up * 3, new Color(.5f, .95f, .6f), 8, 1.2f, true);
             PointLight("Luz lejana", root, Pos(1, 8) + Vector3.up * 3, new Color(.5f, .95f, .6f), 8, 1.2f, true);

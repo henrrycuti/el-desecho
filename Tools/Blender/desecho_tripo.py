@@ -89,34 +89,58 @@ s = math.sin
 TAU = 2 * math.pi
 
 
-def walk(t, period, swing, knee, arms, lean, bob):
+def walk(t, period, swing, knee, arms, lean, bob, sway):
+    # Paso pesado: la cadera se balancea hacia el pie que apoya, el tronco compensa y los brazos
+    # largos cuelgan bajos y se balancean con retraso (como peso muerto).
     f = TAU * t / period
     return {
-        "Spine": (lean, 3 * s(f), 4 * s(f)), "Spine1": (lean * .6, 0, 0),
-        "Head": (4 * s(2 * f + 1), 0, 6 * s(f)),
+        "Hips": (0, sway * s(f), sway * .8 * s(f)),
+        "Spine": (lean, -sway * .6 * s(f), -sway * .5 * s(f)), "Spine1": (lean * .6, 0, 0), "Spine2": (lean * .3, 0, 0),
+        "Neck": (-lean * .5, 0, 0), "Head": (-lean * .4 + 5 * s(2 * f + 1), 0, 8 * s(f + .5)),
         "LeftUpLeg": (-swing * s(f), 0, 0), "RightUpLeg": (swing * s(f), 0, 0),
         "LeftLeg": (knee * max(0, s(f + 1.4)), 0, 0), "RightLeg": (knee * max(0, s(f + 1.4 + math.pi)), 0, 0),
-        "LeftArm": (arms * s(f), 0, 0), "RightArm": (-arms * s(f), 0, 0),
-        "LeftForeArm": (-arms * .5 * max(0, s(f)), 0, 0), "RightForeArm": (-arms * .5 * max(0, -s(f)), 0, 0),
+        "LeftFoot": (10 * s(f + .8), 0, 0), "RightFoot": (-10 * s(f + .8), 0, 0),
+        "LeftArm": (-10 + arms * s(f - .6), -4, 0), "RightArm": (-10 - arms * s(f - .6), 4, 0),
+        "LeftForeArm": (-arms * .6 * max(0, s(f - 1.2)), 0, 0), "RightForeArm": (-arms * .6 * max(0, -s(f - 1.2)), 0, 0),
+        "LeftHand": (-15 * s(f - 1.6), 0, 0), "RightHand": (15 * s(f - 1.6), 0, 0),
     }, -bob * abs(s(f))
 
 
+def snaps(t, keys, quick=.12):
+    """Movimiento a saltos: se queda quieto y de golpe cambia al siguiente valor (cabeza que escucha)."""
+    times = [k[0] for k in keys]
+    for i in range(len(keys) - 1, -1, -1):
+        if t >= times[i]:
+            a = keys[i - 1][1] if i > 0 else keys[-1][1]
+            k = min(1, (t - times[i]) / quick)
+            k = k * k * (3 - 2 * k)
+            return a + (keys[i][1] - a) * k
+    return keys[-1][1]
+
+
 def idle(t):
+    # Respira pesado; de vez en cuando la cabeza da un tiron.
     f = TAU * t / 4
+    jerk = snaps(t, [(0, 0), (1.3, 22), (1.6, 0), (2.9, -18), (3.2, 0)], .08)
     return {
-        "Spine": (3 * s(f), 0, 0), "Spine2": (2 * s(f), 0, 0),
-        "Head": (3 * s(2 * f), 0, 10 * s(f)),
-        "LeftArm": (4 * s(f + 1), 0, 0), "RightArm": (4 * s(f + 2), 0, 0),
-    }, 1.5 * s(f)
+        "Hips": (0, 2 * s(f), 0),
+        "Spine": (4 * s(2 * f), 0, 0), "Spine2": (3 * s(2 * f), 0, 0),
+        "Head": (3 * s(2 * f), jerk * .3, 6 * s(f) + jerk),
+        "LeftArm": (-8 + 5 * s(f + 1), -4, 0), "RightArm": (-8 + 5 * s(f + 2), 4, 0),
+        "LeftForeArm": (-6 * s(f + 1.5), 0, 0), "RightForeArm": (-6 * s(f + 2.5), 0, 0),
+    }, 2 * s(2 * f)
 
 
 def investigate(t):
+    # Escucha: la cabeza se queda quieta y de golpe gira y se ladea hacia otro lado.
+    yaw = snaps(t, [(0, 0), (.7, 40), (1.5, 15), (2.1, -42), (3.0, -20), (3.5, 0)])
+    tilt = snaps(t, [(0, 0), (.7, 18), (1.5, 6), (2.1, -20), (3.0, -8), (3.5, 0)])
     f = TAU * t / 4
     return {
-        "Spine": (-4, 0, 0), "Neck": (-8, 0, 0),
-        "Head": (-10 + 6 * s(2 * f), 14 * s(f + .6), 38 * s(f)),
-        "RightArm": (-25, 10, 0), "RightForeArm": (-30, 0, 0),
-    }, 2
+        "Spine": (-6, 0, yaw * .2), "Neck": (-10, tilt * .3, yaw * .3), "Head": (-12 + 3 * s(3 * f), tilt, yaw * .7),
+        "RightArm": (-28, 12, 0), "RightForeArm": (-35, 0, 0), "RightHand": (-20, 0, 0),
+        "LeftArm": (-6 + 3 * s(f), 0, 0),
+    }, 1.5 + .8 * s(f)
 
 
 def alert(t):
@@ -171,10 +195,11 @@ def recover(t):
 
 CLIPS = [
     ("Idle", 4, idle, True),
-    ("Patrol", 2, lambda t: walk(t, 2, 22, 30, 14, 4, 2.5), True),
+    # Duraciones ajustadas a la velocidad del juego (patrulla 1,6 m/s, persecucion 3,9 m/s) para que los pies no patinen.
+    ("Patrol", 1.2, lambda t: walk(t, 1.2, 26, 34, 20, 6, 3, 6), True),
     ("Investigate", 4, investigate, True),
     ("Alert", 1, alert, False),
-    ("Chase", 1, lambda t: walk(t, 1, 38, 55, 30, 14, 5), True),
+    ("Chase", .7, lambda t: walk(t, .7, 42, 62, 38, 18, 6, 8), True),
     ("Attack", 1.3, attack, False),
     ("Cast", 2.5, cast, True),
     ("Stunned", 2, stunned, True),

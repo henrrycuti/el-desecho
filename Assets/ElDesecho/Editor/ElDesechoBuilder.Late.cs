@@ -136,7 +136,7 @@ public static partial class ElDesechoBuilder {
             foreach (var p in new[] { (5, 5), (9, 7), (14, 5), (8, 9) }) Noisy(root, Pos(p.Item1, p.Item2) + new Vector3(1, 0, 1), "latas");
             foreach (var p in new[] { (4, 1), (8, 3), (2, 5), (11, 7), (6, 9), (17, 3) }) {
                 PointLight("Luz de emergencia", root, Pos(p.Item1, p.Item2) + Vector3.up * (TunnelHeight - .5f), new Color(.5f, .95f, .6f), 10, 1.6f, true);
-                Box("Lampara de emergencia", root, Pos(p.Item1, p.Item2) + Vector3.up * (TunnelHeight - .25f), new Vector3(.4f, .12f, .2f), "LuzVerde", false);
+                Lamp("Lampara_Jaula", root, Pos(p.Item1, p.Item2) + Vector3.up * TunnelHeight, "LuzVerde", 111);
             }
             var drips = Particles("Goteo", root, new Vector3(8, 8, 1), 40, 0, .015f, 1.2f, "Lluvia");
             drips.gameObject.AddComponent<FollowCamera>().offset = new Vector3(0, 3.3f, 3);
@@ -303,7 +303,7 @@ public static partial class ElDesechoBuilder {
 
             foreach (var c in path.Where((c, i) => i % 9 == 4 && map[c.y][c.x] != 'H')) {
                 PointLight("Luz de emergencia", root, Pos(c.x, c.y) + Vector3.up * (TunnelHeight - .5f), new Color(.5f, .95f, .6f), 10, 1.6f, true);
-                Box("Lampara de emergencia", root, Pos(c.x, c.y) + Vector3.up * (TunnelHeight - .25f), new Vector3(.4f, .12f, .2f), "LuzVerde", false);
+                Lamp("Lampara_Jaula", root, Pos(c.x, c.y) + Vector3.up * TunnelHeight, "LuzVerde", 111);
             }
             foreach (var c in path.Where((c, i) => i % 11 == 6)) PipeAt(root, map, c.x, c.y);
             foreach (var c in path.Where((c, i) => i % 13 == 8)) Noisy(root, Pos(c.x, c.y) + new Vector3(1.2f, 0, 1.2f), "latas");

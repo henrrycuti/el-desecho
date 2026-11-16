@@ -82,12 +82,13 @@ public static partial class ElDesechoBuilder {
         xray.kind = XRayKind.Creature;
         xray.offset = Vector3.up * 1.4f * scale;
         var body = creature.AddComponent<CharacterController>();
-        body.height = 2.35f;
-        body.radius = .34f;
-        body.center = Vector3.up * 1.175f;
+        body.height = 2.4f;
+        body.radius = .45f;
+        body.center = Vector3.up * 1.2f;
         body.stepOffset = .35f;
         var brain = creature.AddComponent<CreatureBrain>();
         brain.startDormant = dormant;
+        brain.catchDistance = 1.5f; // brazos largos: atrapa desde un poco mas lejos
         const string audio = "Assets/ElDesecho/Creature/Audio/";
         brain.breathClip = AssetDatabase.LoadAssetAtPath<AudioClip>(audio + "Breath.wav");
         brain.stepClip = AssetDatabase.LoadAssetAtPath<AudioClip>(audio + "Step.wav");
@@ -172,7 +173,7 @@ public static partial class ElDesechoBuilder {
                     {
                         // Algunos fluorescentes parpadean y otros estan rotos (apagados, con el panel oscuro).
                         var tube = PointLight("Fluorescente", cell, Vector3.up * (LabHeight - .3f), new Color(.85f, .92f, 1), 7, 2.4f, lights.Count % 4 == 1);
-                        if (lights.Count % 6 == 3) { tube.enabled = false; panels[^1].sharedMaterial = M("Ventana"); }
+                        if (lights.Count % 6 == 3) { tube.enabled = false; panels[^1].sharedMaterial = panels[^2].sharedMaterial = M("Ventana"); }
                         lights.Add(tube);
                     }
                 }
@@ -378,7 +379,10 @@ public static partial class ElDesechoBuilder {
     static void LabCellGeo(Transform cell, int open, bool white, List<Renderer> panels) {
         Box("Suelo de azulejos", cell, new Vector3(0, -.1f, 0), new Vector3(LabCell, .2f, LabCell), white ? "Azulejo" : "AzulejoGris");
         Box("Techo", cell, new Vector3(0, LabHeight + .1f, 0), new Vector3(LabCell, .2f, LabCell), "TechoLab");
-        panels.Add(Box("Panel fluorescente", cell, new Vector3(0, LabHeight - .02f, 0), new Vector3(.9f, .04f, 2.2f), "Fluorescente", false).GetComponent<Renderer>());
+        // Pantalla de fluorescente modelada (Blender) con dos tubos; los tubos cambian a rojo con la alarma.
+        AlignLong(Prop("Fluorescente_Carcasa", cell, new Vector3(0, LabHeight, 0), 0, false), Vector3.forward);
+        for (int t = -1; t <= 1; t += 2)
+            panels.Add(Box("Tubo fluorescente", cell, new Vector3(t * .08f, LabHeight - .13f, 0), new Vector3(.045f, .045f, 2.1f), "Fluorescente", false).GetComponent<Renderer>());
         for (int side = 0; side < 4; side++) {
             if ((open & (1 << side)) != 0) continue;
             var dir = Direction(side);
@@ -534,7 +538,7 @@ public static partial class ElDesechoBuilder {
             Noisy(root, Pos(15, 8), "latas");
             foreach (var c in new[] { new Vector2Int(12, 2), new Vector2Int(17, 2), new Vector2Int(17, 8), new Vector2Int(9, 1) }) {
                 PointLight("Luz de emergencia", root, Pos(c.x, c.y) + Vector3.up * (TunnelHeight - .5f), new Color(.5f, .95f, .6f), 10, 1.8f, true);
-                Box("Lampara de emergencia", root, Pos(c.x, c.y) + Vector3.up * (TunnelHeight - .25f), new Vector3(.4f, .12f, .2f), "LuzVerde", false);
+                Lamp("Lampara_Jaula", root, Pos(c.x, c.y) + Vector3.up * TunnelHeight, "LuzVerde", 74);
             }
             Trigger("suministros", root, Pos(14, 9) + Vector3.up * 1.5f, new Vector3(Cell, 3, Cell));
 
