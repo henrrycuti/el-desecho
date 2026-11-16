@@ -7,7 +7,7 @@ public sealed class AlarmLights : MonoBehaviour {
     public Renderer[] panels = new Renderer[0];
     public Material alarmPanel;
     public UnityEngine.Rendering.Volume alarmVolume;
-    public Color ambientAfter = new(.08f, .01f, .01f);
+    public Color ambientAfter = new(.2f, .035f, .03f);
     public Color fogAfter = new(.05f, 0, 0);
     public bool Active { get; private set; }
     AudioSource siren;
@@ -18,7 +18,7 @@ public sealed class AlarmLights : MonoBehaviour {
         foreach (var l in lights) {
             if (l == null) continue;
             l.color = new Color(1, .08f, .05f);
-            l.intensity *= .7f;
+            l.intensity *= 1.1f;
             if (l.GetComponent<FlickerLight>() == null) l.gameObject.AddComponent<FlickerLight>().depth = .75f;
         }
         foreach (var r in panels) if (r != null && alarmPanel != null) r.sharedMaterial = alarmPanel;

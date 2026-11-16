@@ -122,7 +122,8 @@ public static partial class ElDesechoBuilder {
         string folder = $"{Root}/Texturas/Calcomanias";
         System.IO.Directory.CreateDirectory(folder);
         string png = $"{folder}/{kind}.png";
-        if (!System.IO.File.Exists(png)) {
+        {
+            // Se regenera siempre: la textura sale del codigo de Splat.
             System.IO.File.WriteAllBytes(png, Splat(kind).EncodeToPNG());
             AssetDatabase.ImportAsset(png);
             var importer = (TextureImporter)AssetImporter.GetAtPath(png);
@@ -144,30 +145,47 @@ public static partial class ElDesechoBuilder {
     static Texture2D Splat(string kind) {
         const int n = 256;
         var t = new Texture2D(n, n, TextureFormat.RGBA32, false);
-        var rnd = new System.Random(kind.Length * 7919 + kind[0]);
-        Color tint = kind switch { "Sangre" => new Color(.28f, .02f, .02f), "Baba" => new Color(.25f, .55f, .15f), _ => new Color(.08f, .07f, .06f) };
-        var blobs = new List<Vector3>();
-        if (kind == "Aranazo") {
-            for (int c = 0; c < 4; c++) for (int i = 0; i < 60; i++) {
-                float f = i / 59f;
-                blobs.Add(new Vector3(.3f + c * .12f + f * .12f, .12f + f * .76f, .012f + Mathf.Sin(f * Mathf.PI) * .01f));
-            }
-        } else {
-            blobs.Add(new Vector3(.5f, .5f, .26f));
-            for (int i = 0; i < 14; i++) {
-                float a = (float)rnd.NextDouble() * 6.283f, d = .1f + (float)rnd.NextDouble() * .3f;
-                blobs.Add(new Vector3(.5f + Mathf.Cos(a) * d, .5f + Mathf.Sin(a) * d, .02f + (float)rnd.NextDouble() * .09f));
-            }
+        var rnd = new System.Random(kind == "Sangre" ? 11 : kind == "Baba" ? 23 : 37);
+        Color tint = kind switch { "Sangre" => new Color(.42f, .02f, .02f), "Baba" => new Color(.3f, .62f, .16f), _ => new Color(.1f, .06f, .05f) };
+        // Gotas satelite (x, y, radio) y chorros que salen del centro (angulo, largo).
+        var drops = new List<Vector3>();
+        for (int i = 0; i < 22; i++) {
+            float a = (float)rnd.NextDouble() * 6.283f, d = .22f + (float)rnd.NextDouble() * .24f;
+            drops.Add(new Vector3(.5f + Mathf.Cos(a) * d, .5f + Mathf.Sin(a) * d, .006f + (float)rnd.NextDouble() * .022f));
         }
+        var streaks = new List<Vector2>();
+        for (int i = 0; i < 7; i++) streaks.Add(new Vector2((float)rnd.NextDouble() * 6.283f, .3f + (float)rnd.NextDouble() * .16f));
         for (int y = 0; y < n; y++)
             for (int x = 0; x < n; x++) {
-                float u = x / (float)n, v = y / (float)n, field = 0;
-                foreach (var b in blobs) { float dx = u - b.x, dy = v - b.y; field += b.z * b.z / (dx * dx + dy * dy + 1e-5f); }
-                float noise = Mathf.PerlinNoise(u * 9 + kind.Length, v * 9);
-                float alpha = Mathf.Clamp01((field - .9f + noise * .5f) * 2.5f);
-                float edge = Mathf.Clamp01((1 - Mathf.Max(Mathf.Abs(u - .5f), Mathf.Abs(v - .5f)) * 2) / .15f);
-                float k = .7f + noise * .5f;
-                t.SetPixel(x, y, new Color(tint.r * k, tint.g * k, tint.b * k, alpha * .9f * edge));
+                float u = x / (float)n, v = y / (float)n, alpha;
+                float noise = Mathf.PerlinNoise(u * 7 + kind.Length * 3, v * 7);
+                if (kind == "Aranazo") {
+                    // Cuatro surcos finos de garra, algo curvos, mas anchos en el centro.
+                    alpha = 0;
+                    for (int c = 0; c < 4; c++) {
+                        float f = Mathf.Clamp01((v - .1f) / .8f);
+                        float cx = .28f + c * .13f + f * .14f + Mathf.Sin(f * 3.1f) * .03f;
+                        float w = (.006f + Mathf.Sin(f * Mathf.PI) * .014f) * (v > .1f && v < .9f ? 1 : 0);
+                        alpha = Mathf.Max(alpha, Mathf.Clamp01(1 - Mathf.Abs(u - cx) / Mathf.Max(w, 1e-4f)));
+                    }
+                    alpha = Mathf.Clamp01(alpha * 1.6f) * (.75f + noise * .25f);
+                } else {
+                    float dx = u - .5f, dy = v - .5f, r = Mathf.Sqrt(dx * dx + dy * dy), ang = Mathf.Atan2(dy, dx);
+                    float radius = .17f + Mathf.PerlinNoise(Mathf.Cos(ang) * 2 + 5, Mathf.Sin(ang) * 2 + kind.Length) * .1f;
+                    alpha = Mathf.Clamp01((radius - r) / .012f);
+                    foreach (var s in streaks) {
+                        float da = Mathf.DeltaAngle(ang * Mathf.Rad2Deg, s.x * Mathf.Rad2Deg) * Mathf.Deg2Rad;
+                        float width = .045f * (1 - r / s.y);
+                        if (r < s.y) alpha = Mathf.Max(alpha, Mathf.Clamp01((width - Mathf.Abs(da) * r) / .006f));
+                    }
+                    foreach (var d in drops) {
+                        float ex = u - d.x, ey = v - d.y;
+                        alpha = Mathf.Max(alpha, Mathf.Clamp01((d.z - Mathf.Sqrt(ex * ex + ey * ey)) / .004f));
+                    }
+                }
+                float edge = Mathf.Clamp01((1 - Mathf.Max(Mathf.Abs(u - .5f), Mathf.Abs(v - .5f)) * 2) / .06f);
+                float k = .75f + noise * .45f;
+                t.SetPixel(x, y, new Color(tint.r * k, tint.g * k, tint.b * k, alpha * .95f * edge));
             }
         t.Apply();
         return t;

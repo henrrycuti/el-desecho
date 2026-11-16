@@ -320,7 +320,7 @@ public static partial class ElDesechoBuilder {
         _ => Profile("Alcantarilla " + scene, new Color(.88f, 1, .9f), 15, -15, .7f, .38f, .25f, 0),
     };
 
-    static Volume AlarmLook(Transform parent) => PostFx(parent, Profile("Alarma", new Color(1.1f, .75f, .72f), 30, 20, 1.1f, .5f, .45f, .3f), 0, 5);
+    static Volume AlarmLook(Transform parent) => PostFx(parent, Profile("Alarma", new Color(1.3f, .92f, .88f), 18, 15, 1f, .4f, .38f, .22f), 0, 5);
 
     // ---------- Jugador y sistemas de escena ----------
     static FirstPersonController Player(Transform parent, bool flashlightOn, Color background) {

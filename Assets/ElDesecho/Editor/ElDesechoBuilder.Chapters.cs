@@ -226,7 +226,9 @@ public static partial class ElDesechoBuilder {
             // Rastro de baba desde el tanque roto y aranazos en las paredes.
             for (int i = 0; i < 6; i++) Decal("Baba", root, LabPos(7, 7) + new Vector3(1.6f - i * .9f, .25f, -1.2f - i * .5f), new Vector2(.9f, .9f), i * 61);
             Decal("Aranazo", root, LabPos(13, 5) + new Vector3(1.5f, 1.4f, .3f), new Vector2(1, 1.3f), 0, Vector3.right);
-            Decal("Aranazo", root, LabPos(7, 8) + new Vector3(-1.4f, 1.5f, 0), new Vector2(1.1f, 1.4f), 8, Vector3.left);
+            Decal("Aranazo", root, LabPos(5, 9) + new Vector3(-1.4f, 1.5f, 0), new Vector2(1.1f, 1.4f), 8, Vector3.left);
+            Decal("Aranazo", root, LabPos(1, 1) + new Vector3(0, 1.5f, 1.4f), new Vector2(1.1f, 1.4f), -6, Vector3.forward);
+            Decal("Sangre", root, LabPos(7, 8) + new Vector3(-1.3f, .25f, -.6f), Vector2.one * 1.5f, 30);
             Noisy(root, LabPos(5, 3), "cristales");
             Noisy(root, LabPos(15, 5), "cristales");
             Noisy(root, LabPos(3, 7), "latas");
