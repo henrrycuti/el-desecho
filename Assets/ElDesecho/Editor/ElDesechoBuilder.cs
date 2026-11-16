@@ -81,6 +81,8 @@ public static partial class ElDesechoBuilder {
         PlayerSettings.productName = "El Desecho";
         PlayerSettings.companyName = "Equipo Tecsup";
         PlayerSettings.colorSpace = ColorSpace.Linear;
+        // Sin esto el juego se congela al perder el foco de la ventana (y la prueba automatica se cuelga).
+        PlayerSettings.runInBackground = true;
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
         PlayerSettings.allowedAutorotateToPortrait = false;
         PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
@@ -198,6 +200,7 @@ public static partial class ElDesechoBuilder {
         g.transform.localPosition = position;
         g.transform.localRotation = Quaternion.Euler(euler);
         g.transform.localScale = new Vector3(radius * 2, length / 2, radius * 2);
+        CylinderUv(g, radius, length, material);
         Finish(g, material, solid);
         return g;
     }
@@ -282,7 +285,7 @@ public static partial class ElDesechoBuilder {
 
 
     // ---------- Postproceso (URP) ----------
-    static VolumeProfile Profile(string name, Color filter, float contrast, float saturation, float bloom, float vignette, float grain, float aberration) {
+    static VolumeProfile Profile(string name, Color filter, float contrast, float saturation, float bloom, float vignette, float grain, float aberration, float exposure = 0) {
         string path = $"{Root}/Postproceso/{name}.asset";
         Directory.CreateDirectory($"{Root}/Postproceso");
         AssetDatabase.DeleteAsset(path);
@@ -294,6 +297,7 @@ public static partial class ElDesechoBuilder {
         v.intensity.Override(vignette); v.smoothness.Override(.45f);
         var c = p.Add<ColorAdjustments>(true);
         c.colorFilter.Override(filter); c.contrast.Override(contrast); c.saturation.Override(saturation);
+        if (exposure != 0) c.postExposure.Override(exposure);
         if (grain > 0) { var g = p.Add<FilmGrain>(true); g.intensity.Override(grain); g.type.Override(FilmGrainLookup.Medium3); }
         if (aberration > 0) p.Add<ChromaticAberration>(true).intensity.Override(aberration);
         foreach (var comp in p.components) AssetDatabase.AddObjectToAsset(comp, p);
@@ -314,10 +318,10 @@ public static partial class ElDesechoBuilder {
 
     // Tono de cada escena: calle azul de noche, alcantarilla verdosa, laboratorio frio y limpio.
     static VolumeProfile SceneLook(string scene) => scene switch {
-        "P0_Calle" => Profile("Calle", new Color(.85f, .9f, 1.05f), 12, -5, .9f, .32f, .2f, 0),
+        "P0_Calle" => Profile("Calle", new Color(.85f, .9f, 1.05f), 12, -5, .9f, .28f, .2f, 0, .5f),
         "C1_Laboratorio" => Profile("Laboratorio", new Color(.8f, .87f, .95f), 18, -10, .3f, .3f, .08f, 0),
-        "C5_LuzDelDia" => Profile("Persecucion", new Color(1.05f, .85f, .82f), 22, 5, .8f, .4f, .3f, .15f),
-        _ => Profile("Alcantarilla " + scene, new Color(.88f, 1, .9f), 15, -15, .7f, .38f, .25f, 0),
+        "C5_LuzDelDia" => Profile("Persecucion", new Color(1.05f, .85f, .82f), 22, 5, .8f, .4f, .3f, .15f, .5f),
+        _ => Profile("Alcantarilla " + scene, new Color(.88f, 1, .9f), 15, -15, .7f, .36f, .25f, 0, .6f),
     };
 
     static Volume AlarmLook(Transform parent) => PostFx(parent, Profile("Alarma", new Color(1.3f, .92f, .88f), 18, 15, 1f, .4f, .38f, .22f), 0, 5);
@@ -368,8 +372,29 @@ public static partial class ElDesechoBuilder {
         var g = new GameObject("Historia y pantalla");
         g.transform.SetParent(parent, false);
         g.AddComponent<Hud>();
-        g.AddComponent<ThreatMusic>();
-        PostFx(parent, SceneLook(parent.root.name));
+        string scene = parent.root.name;
+        var music = g.AddComponent<ThreatMusic>();
+        music.mood = scene switch {
+            "P0_Calle" => 6, "P1_Alcantarilla" => 1, "C1_Laboratorio" => 2, "C2_TresCaminos" => 3,
+            "C3_Investigacion" => 4, "C4_PuertaSalida" => 5, "C5_LuzDelDia" => 3, _ => 1,
+        };
+        if (scene == "C5_LuzDelDia") music.ambientVolume = .2f;
+        PostFx(parent, SceneLook(scene));
+        // Agua que corre y una sonda de reflejos para que los charcos y el agua reflejen las luces.
+        var water = g.AddComponent<WaterFlow>();
+        water.materials = new[] { M("Agua"), M("AguaProfunda") };
+        var bounds = new Bounds(parent.position, Vector3.one);
+        foreach (var r in parent.root.GetComponentsInChildren<Renderer>()) bounds.Encapsulate(r.bounds);
+        var probe = new GameObject("Sonda de reflejos").AddComponent<ReflectionProbe>();
+        probe.transform.SetParent(parent, false);
+        probe.transform.position = bounds.center;
+        probe.size = bounds.size + Vector3.one * 2;
+        probe.mode = ReflectionProbeMode.Realtime;
+        probe.refreshMode = ReflectionProbeRefreshMode.OnAwake;
+        probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.AllFacesAtOnce;
+        probe.resolution = 64;
+        probe.hdr = false;
+        probe.farClipPlane = 60;
         return g.AddComponent<ObjectiveManager>();
     }
 
@@ -377,6 +402,9 @@ public static partial class ElDesechoBuilder {
         new() { objective = objective, completeOn = completeOn, lines = lines };
 
     static void Atmosphere(Color ambient, Color fog, float density) {
+        // Escenas oscuras (calle de noche, alcantarillas): mas luz ambiente y menos niebla para que se lean
+        // las texturas; la tension la ponen la vineta y el contraste del postproceso.
+        if (ambient.maxColorComponent < .12f) { ambient *= 2.4f; density *= .7f; }
         RenderSettings.ambientMode = AmbientMode.Flat;
         RenderSettings.ambientLight = ambient;
         RenderSettings.fog = true;
@@ -581,6 +609,11 @@ public static partial class ElDesechoBuilder {
             if ((open & bit) == 0) {
                 Box("Muro", cell, wallCenter + Vector3.up * height / 2, across * Cell + Abs(dir) * Wall + Vector3.up * height, "Muro");
                 Box("Linea de mugre", cell, wallCenter - dir * (Wall / 2 + .01f) + Vector3.up * .35f, across * Cell + Abs(dir) * .02f + Vector3.up * .5f, "Mugre", false);
+                // Una calcomania por muro en algunas celdas: musgo abajo u oxido que chorrea desde arriba.
+                int hash = Mathf.Abs((int)(cell.localPosition.x * 7 + cell.localPosition.z * 13) + side * 5) % 6;
+                var surface = dir * (Cell / 2 - Wall - .3f);
+                if (hash == 0) Decal("Musgo", cell, surface + Vector3.up * .9f + across * .8f, new Vector2(2.4f, 1.4f), 0, dir);
+                else if (hash == 3) Decal("Escurrido", cell, surface + Vector3.up * (height - 1.3f) - across * .6f, new Vector2(1.6f, 2), 0, dir);
             } else if (chamber && (chamberSides & bit) == 0) {
                 // Paso de la camara a un tunel normal: dintel sobre la abertura.
                 Box("Dintel", cell, wallCenter + Vector3.up * (TunnelHeight + (ChamberHeight - TunnelHeight) / 2), across * Cell + Abs(dir) * Wall + Vector3.up * (ChamberHeight - TunnelHeight), "Muro");
@@ -599,6 +632,7 @@ public static partial class ElDesechoBuilder {
             Cylinder("Tuberia", cell, dir * (Cell / 2 - Wall - .2f) + Vector3.up * (height - .6f), .16f, Cell, along.x > 0 ? new Vector3(0, 0, 90) : new Vector3(90, 0, 0), "Oxido");
             break;
         }
+        SewerProps(cell, open, height);
     }
 
     static Vector3 Direction(int side) => side switch { 0 => Vector3.forward, 1 => Vector3.right, 2 => Vector3.back, _ => Vector3.left };

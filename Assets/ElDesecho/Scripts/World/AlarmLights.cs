@@ -44,21 +44,42 @@ public sealed class AlarmLights : MonoBehaviour {
         siren = gameObject.AddComponent<AudioSource>();
         siren.clip = MakeSiren();
         siren.loop = true;
-        siren.volume = .22f;
+        siren.volume = .16f;
         siren.Play();
+        activatedAt = Time.time;
     }
 
+    float activatedAt;
+
+    // La alarma empieza fuerte y en unos 25 s queda de fondo, para no cansar.
+    void Update() {
+        if (siren != null) siren.volume = Mathf.Lerp(.16f, .06f, (Time.time - activatedAt) / 25);
+    }
+
+    // Alarma de instalacion de dos tonos graves, apagada y con eco, como oida a traves de los muros.
     static AudioClip MakeSiren() {
         const int rate = 22050;
-        var data = new float[rate * 2];
-        float phase = 0;
-        for (int i = 0; i < data.Length; i++) {
-            float t = i / (float)rate;
-            float freq = 520 + 260 * Mathf.Sin(t * Mathf.PI);
-            phase += 2 * Mathf.PI * freq / rate;
-            data[i] = Mathf.Sin(phase) * .5f + Mathf.Sin(phase * 2) * .15f;
-        }
-        var clip = AudioClip.Create("Sirena", data.Length, 1, rate, false);
+        const float length = 2.4f;
+        int n = (int)(rate * length);
+        var data = new float[n];
+        // Dos tonos de 0,7 s separados por silencios cortos (re y la bemol graves).
+        var tones = new (float start, float freq)[] { (0, 293.7f), (1.2f, 207.7f) };
+        foreach (var (start, freq) in tones)
+            for (int i = 0; i < rate * .7f; i++) {
+                float t = i / (float)rate;
+                float env = Mathf.Clamp01(t / .04f) * Mathf.Clamp01((.7f - t) / .12f);
+                // Onda cuadrada suave: solo armonicos impares bajos (sin chillido agudo).
+                float s = Mathf.Sin(2 * Mathf.PI * freq * t) + Mathf.Sin(2 * Mathf.PI * freq * 3 * t) / 5 + Mathf.Sin(2 * Mathf.PI * freq * 5 * t) / 14;
+                data[(int)(start * rate) + i] += s * env * .5f;
+            }
+        // Eco que da sensacion de pasillos largos (se repite en bucle sin corte).
+        int delay = (int)(rate * .23f);
+        for (int pass = 0; pass < 2; pass++)
+            for (int i = 0; i < n; i++) data[i] += data[(i - delay + n) % n] * .35f;
+        float peak = .001f;
+        foreach (var s in data) peak = Mathf.Max(peak, Mathf.Abs(s));
+        for (int i = 0; i < n; i++) data[i] = data[i] / peak * .7f;
+        var clip = AudioClip.Create("Alarma", n, 1, rate, false);
         clip.SetData(data, 0);
         return clip;
     }

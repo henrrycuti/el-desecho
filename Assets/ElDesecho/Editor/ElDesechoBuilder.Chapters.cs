@@ -163,6 +163,9 @@ public static partial class ElDesechoBuilder {
                     var cell = Group($"Sala {x},{y}", building);
                     cell.localPosition = LabPos(x, y);
                     LabCellGeo(cell, open, (x + y) % 2 == 0, panels);
+                    // Mobiliario modelado en Blender, lejos de pruebas, cuerpos y escondites.
+                    var busy = new[] { (3, 3), (11, 3), (8, 8), (13, 5), (1, 5), (15, 7), (1, 3), (1, 1), (15, 1), (5, 3), (15, 5), (3, 7) };
+                    if (At(x, y) == '.' && (x * 5 + y * 3) % 4 == 1 && !busy.Contains((x, y))) LabProps(cell, open, x + y, LabCell, LabWall);
                     if ((x * 3 + y * 5) % 4 == 0 || At(x, y) is 'E' or 'F' or 'G' or 'X' or 'H')
                     {
                         // Algunos fluorescentes parpadean y otros estan rotos (apagados, con el panel oscuro).
@@ -192,6 +195,7 @@ public static partial class ElDesechoBuilder {
             hall.localPosition = LabPos(7, 7);
             var tank = Group("Tanque de contencion roto", hall);
             tank.localPosition = new Vector3(2.6f, 0, -2.6f);
+            Prop("Tanque_Contencion", hall, new Vector3(-2.6f, 0, -2.6f), 30);
             Cylinder("Base", tank, new Vector3(0, .15f, 0), .9f, .3f, Vector3.zero, "Metal", true);
             Cylinder("Cristal del tanque", tank, new Vector3(0, 1.4f, 0), .85f, 2.2f, Vector3.zero, "Cristal");
             Cylinder("Residuo", tank, new Vector3(0, .4f, 0), .8f, .2f, Vector3.zero, "Liquido");

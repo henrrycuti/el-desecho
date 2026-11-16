@@ -418,7 +418,14 @@ public static partial class ElDesechoBuilder {
 
             // Compuerta abierta con la luz del amanecer.
             var exit = Point("Salida al amanecer", root, Pos(1, 7));
-            Box("Luz del amanecer", exit, new Vector3(-2.75f, 1.7f, 0), new Vector3(.05f, 3.2f, 4.6f), "Amanecer", false);
+            // Se abre el muro oeste de la ultima celda: detras se ve la luz del dia (antes quedaba tapada por el ladrillo).
+            var exitCell = root.Find("Alcantarilla/Celda 1,7");
+            if (exitCell != null)
+                foreach (var t in exitCell.Cast<Transform>().ToList())
+                    if (t.localPosition.x < -2f && t.localPosition.y > -.1f) Object.DestroyImmediate(t.gameObject);
+            Box("Luz del amanecer", exit, new Vector3(-3.4f, 1.8f, 0), new Vector3(.1f, 3.8f, 6), "Amanecer");
+            Box("Marco de la compuerta", exit, new Vector3(-2.9f, 3.5f, 0), new Vector3(.4f, .3f, 5.4f), "Oxido");
+            PointLight("Resplandor del amanecer", exit, new Vector3(-1.8f, 1.8f, 0), new Color(1, .8f, .55f), 16, 5);
             var sun = new GameObject("Sol").AddComponent<Light>();
             sun.transform.SetParent(exit, false);
             sun.transform.localPosition = new Vector3(-2, 2.5f, 0);
@@ -621,6 +628,22 @@ public static partial class ElDesechoBuilder {
             PointLight("Luz del antidoto", tunnel, new Vector3(0, 2.6f, 7), new Color(.4f, 1, .5f), 10, 3.5f, true);
             PointLight("Luz de los soldados", tunnel, new Vector3(.5f, 3, 3), new Color(.9f, .95f, 1), 12, 3);
             PointLight("Luz sobre la boca", tunnel, new Vector3(0, 4.5f, 6.5f), new Color(1, .9f, .8f), 6, 2.5f);
+            // Luces de cine para los planos cercanos de la masa (antes la criatura llenaba el plano y salia negra).
+            foreach (var (pos, aim, color) in new[] {
+                (new Vector3(1.2f, 2.2f, 3.4f), new Vector3(0, 1.6f, 8.5f), new Color(.75f, 1, .8f)),
+                (new Vector3(-1, 3.2f, 5.6f), new Vector3(0, 3.4f, 8.5f), new Color(1, .9f, .8f)),
+                (new Vector3(0, 2.5f, 11.5f), new Vector3(0, 1.8f, 8), new Color(.4f, 1, .5f)) }) {
+                var key = new GameObject("Luz de cine").AddComponent<Light>();
+                key.transform.SetParent(tunnel, false);
+                key.transform.localPosition = pos;
+                key.transform.localRotation = Quaternion.LookRotation(aim - pos);
+                key.type = LightType.Spot;
+                key.spotAngle = 60;
+                key.range = 14;
+                key.intensity = 7;
+                key.color = color;
+                key.shadows = LightShadows.None;
+            }
             Transform grower = null;
             SkinnedMeshRenderer mouth = null;
             for (int i = 0; i < 3; i++) {
@@ -636,8 +659,8 @@ public static partial class ElDesechoBuilder {
                 (Shot("Clausurado", new Vector3(100, 1.6f, -4), new Vector3(100, 1.5f, 1), new Vector3(0, 0, .25f)), 9f, 7f),
                 (Shot("Institucion", new Vector3(201.6f, 1.7f, -1.8f), new Vector3(198.8f, 1.3f, .6f), new Vector3(0, 0, .12f)), 16f, 9f),
                 (Shot("Soldados", new Vector3(301.8f, 1.8f, -4), new Vector3(300, 1, 7), new Vector3(0, 0, .3f)), 25f, 9f),
-                (Shot("La masa crece", new Vector3(300.5f, 1.6f, 3), new Vector3(300, 1.5f, 8.5f), new Vector3(0, 0, .2f)), 34f, 7f),
-                (Shot("La boca", new Vector3(300, 3.4f, 5.4f), new Vector3(300, 3.4f, 8.5f), new Vector3(0, 0, .25f)), 41f, 7f),
+                (Shot("La masa crece", new Vector3(301.6f, 2, -1.5f), new Vector3(300, 1.8f, 8.5f), new Vector3(-.05f, 0, .15f)), 34f, 7f),
+                (Shot("La boca", new Vector3(300.8f, 2.6f, 1), new Vector3(300, 3.2f, 8.5f), new Vector3(0, 0, .12f)), 41f, 7f),
             };
 
             var directorObject = new GameObject("Linea de tiempo del epilogo");
