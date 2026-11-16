@@ -68,11 +68,13 @@ public static partial class ElDesechoBuilder {
     }
 
     static Vector3 LabPos(int x, int y) => new(x * LabCell, 0, -y * LabCell);
+    static bool creaturePrepared;
 
     // scale < 1: una de las masas pequenas en que se dividio el compuesto (mismo modelo, mas rapida).
     static CreatureBrain Creature(Transform parent, Vector3 position, bool dormant, float scale = 1) {
+        // El prefab de la criatura se rehace una vez por compilacion (por si cambio el modelo o sus animaciones).
+        if (!creaturePrepared) { CreatureSetup.Prepare(); creaturePrepared = true; }
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(CreatureSetup.PrefabPath);
-        if (prefab == null) { CreatureSetup.Prepare(); prefab = AssetDatabase.LoadAssetAtPath<GameObject>(CreatureSetup.PrefabPath); }
         var creature = (GameObject)PrefabUtility.InstantiatePrefab(prefab, parent);
         creature.transform.localPosition = position;
         creature.transform.localScale = Vector3.one * scale;
